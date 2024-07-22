@@ -49,7 +49,7 @@ $sb->load_file('chan_master1', "sandbox/gtid_on.sql", undef, no_wait => 1);
 $sb->load_file('chan_master2', "sandbox/gtid_on.sql", undef, no_wait => 1);
 $sb->load_file('chan_slave1', "sandbox/slave_channels.sql", undef, no_wait => 1);
                                                           
-my @args = qw(--execute --no-foreign-key-checks --verbose --databases=sakila --tables=actor --sync-to-master --channel=masterchan1);
+my @args = qw(--execute --no-foreign-key-checks --verbose --databases=sakila --tables=actor --sync-to-master --channel=sourcechan1);
 my $exit_status;
 
 my $output = output(

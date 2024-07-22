@@ -91,10 +91,10 @@ like (
     'Message saying channel name must be specified'
 );
 
-push @args, ('--channel', 'masterchan1');
+push @args, ('--channel', 'sourcechan1');
 
 output(
-   sub { $exit_status = pt_archiver::main(@args, '--channel', 'masterchan1') },
+   sub { $exit_status = pt_archiver::main(@args, '--channel', 'sourcechan1') },
    stderr => 1,
 );
 
