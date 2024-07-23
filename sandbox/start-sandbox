@@ -247,7 +247,7 @@ make_sandbox() {
 # Sanity check the cmd line options.
 # ###########################################################################
 if [ $# -lt 2 ]; then
-    die "Usage: start-sandbox source|replica|source-source port [source port]"
+    die "Usage: start-sandbox source|replica|source-source|cluster|channels port [source port]"
 fi
 
 type=$1         # source, replica or source-source
@@ -324,6 +324,15 @@ if [ $type = "cluster" -o $APP = "pxc" ]; then
 else
     version=`$PERCONA_TOOLKIT_SANDBOX/$mysqld -V 2>/dev/null | awk '{print $3}' | cut -d. -f 1,2`;
     minor_version=`$PERCONA_TOOLKIT_SANDBOX/$mysqld -V 2>/dev/null | awk '{print $3}' | cut -d. -f 1,2,3 | cut -d- -f1`;
+fi
+
+SOURCE_NAME="master"
+CHANGE_SOURCE_NAME="master"
+REPLICA_NAME="slave"
+if [ "$version" '>' "8.1" ] && [ "$APP" '!=' "mariadb" ]; then
+   SOURCE_NAME="source"
+   CHANGE_SOURCE_NAME="replication source"
+   REPLICA_NAME="replica"
 fi
 
 if [ ! -d "$PERCONA_TOOLKIT_BRANCH/sandbox/servers/${APP#mysql}/$version" ]; then

@@ -35,7 +35,7 @@ err() {
 }
 
 usage() {
-    err "Usage: test-env start|stop|restart|status|checkconfig|reset|kill" \
+    err "Usage: test-env start|stop|restart|status|checkconfig|kill" \
         ""                                                          \
         "  start       Start test servers in ${TMP_DIR}/PORT"             \
         "  stop        Stop test servers and remove all ${TMP_DIR}/PORT"  \
@@ -43,7 +43,6 @@ usage() {
         "  restart     Stop and start test servers"                 \
         "  status      Print status of test servers"                \
         "  checkconfig Check test env and test servers"             \
-        "  reset       Reset test server binary logs"               \
         "  version     Print MySQL version of running test servers" \
         ""
 }
@@ -148,6 +147,8 @@ sandbox_status() {
     $PERCONA_TOOLKIT_SANDBOX/bin/mysqladmin --defaults-file="${TMP_DIR}/$port/my.sandbox.cnf" ping >/dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo "yes"
+        set_mysql_version
+        set_source_replica_names
 
         if [ "$MYSQL_VERSION" '>' "4.1" ]; then
             echo -n "  sakila db is loaded - "
@@ -257,9 +258,6 @@ set_source_replica_names() {
       CHANGE_SOURCE_NAME="replication source"
       REPLICA_NAME="replica"
    fi
-   export SOURCE_NAME
-   export CHANGE_SOURCE_NAME
-   export REPLICA_NAME
 }
 
 _seq() {
