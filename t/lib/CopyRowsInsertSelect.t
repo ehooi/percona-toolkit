@@ -29,7 +29,7 @@ $Data::Dumper::Quotekeys = 0;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 if ( !$dbh ) {
    plan skip_all => 'Cannot connect to MySQL';
@@ -57,7 +57,7 @@ sub test_copy_table {
    my (%args) = @_;
    my ($tbl, $col, $expect) = @args{qw(tbl col expect)};
 
-   $sb->load_file("master", "t/lib/samples/osc/$tbl");
+   $sb->load_file("source", "t/lib/samples/osc/$tbl");
    $dbh->do("USE osc");
 
    $osc->copy(

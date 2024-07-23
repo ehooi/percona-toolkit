@@ -25,8 +25,8 @@ use Data::Dumper;
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
 
-my $master_dbh = $sb->get_dbh_for('master');
-my $slave_dbh  = $sb->get_dbh_for('slave1');
+my $master_dbh = $sb->get_dbh_for('source');
+my $slave_dbh  = $sb->get_dbh_for('replica1');
 my $master_dsn = {
    h => '127.1',
    P => '12345',
@@ -81,9 +81,10 @@ PXC_SKIP: {
             h => '127.0.0.1',
             p => 'msandbox',
             t => undef,
+            mysql_ssl => undef,
             u => 'msandbox',
             server_id => 12346,
-            master_id => 12345,
+            source_id => 12345,
             source    => 'hosts',
          },
          'get_slaves() from recurse_to_slaves() with a default --recursion-method'
@@ -137,7 +138,7 @@ PXC_SKIP: {
       diag(`/tmp/12345/use -u root < $trunk/t/lib/samples/ro-checksum-user.sql`);
 
       my $ro_dbh = DBI->connect(
-         "DBI:mysql:;host=127.0.0.1;port=12345", 'ro_checksum_user', 'msandbox',
+         "DBI:mysql:;host=127.0.0.1;port=12345;mysql_ssl=1", 'ro_checksum_user', 'msandbox',
               { PrintError => 0, RaiseError => 1 });
       my $ro_dsn = {
          h => '127.1',
@@ -219,20 +220,20 @@ PXC_SKIP: {
 # sandbox servers) as seen in the %port_for hash below.
 # #############################################################################
 my %port_for = (
-   master => 2900,
-   slave0 => 2901,
-   slave1 => 2902,
-   slave2 => 2903,
+   source => 2900,
+   replica0 => 2901,
+   replica1 => 2902,
+   replica2 => 2903,
 );
 foreach my $port ( values %port_for ) {
    if ( -d "/tmp/$port" ) {
       diag(`$trunk/sandbox/stop-sandbox $port >/dev/null 2>&1`);
    }
 }
-diag(`$trunk/sandbox/start-sandbox master 2900`);
-diag(`$trunk/sandbox/start-sandbox slave 2903 2900`);
-diag(`$trunk/sandbox/start-sandbox slave 2901 2900`);
-diag(`$trunk/sandbox/start-sandbox slave 2902 2901`);
+diag(`$trunk/sandbox/start-sandbox source 2900`);
+diag(`$trunk/sandbox/start-sandbox replica 2903 2900`);
+diag(`$trunk/sandbox/start-sandbox replica 2901 2900`);
+diag(`$trunk/sandbox/start-sandbox replica 2902 2901`);
 
 # I discovered something weird while updating this test. Above, you see that
 # slave2 is started first, then the others. Before, slave2 was started last,
@@ -256,7 +257,7 @@ my $dbh;
 my @slaves;
 my @sldsns;
 
-my $dsn = $dp->parse("h=127.0.0.1,P=$port_for{master},u=msandbox,p=msandbox");
+my $dsn = $dp->parse("h=127.0.0.1,P=$port_for{source},u=msandbox,p=msandbox,mysql_ssl=>1");
 $dbh    = $dp->get_dbh($dp->get_cxn_params($dsn), { AutoCommit => 1 });
 
 my $callback = sub {
@@ -294,16 +295,17 @@ is(
 ) or diag(Dumper(\@slaves));
 
 is_deeply(
-   $ms->get_master_dsn( $slaves[0], undef, $dp ),
+   $ms->get_source_dsn( $slaves[0], undef, $dp ),
    {  h => '127.0.0.1',
       u => undef,
-      P => $port_for{master},
+      P => $port_for{source},
       S => undef,
       F => undef,
       p => undef,
       D => undef,
       A => undef,
       t => undef,
+      mysql_ssl => undef,
    },
    'Got master DSN',
 );
@@ -313,17 +315,17 @@ is_deeply(
 # +- 127.0.0.1:slave0
 # |  +- 127.0.0.1:slave1
 # +- 127.0.0.1:slave2
-is($ms->get_slave_status($slaves[0])->{master_port}, $port_for{master}, 'slave 1 port');
-is($ms->get_slave_status($slaves[1])->{master_port}, $port_for{slave0}, 'slave 2 port');
-is($ms->get_slave_status($slaves[2])->{master_port}, $port_for{master}, 'slave 3 port');
+is($ms->get_slave_status($slaves[0])->{source_port}, $port_for{source}, 'slave 1 port');
+is($ms->get_slave_status($slaves[1])->{source_port}, $port_for{replica0}, 'slave 2 port');
+is($ms->get_slave_status($slaves[2])->{source_port}, $port_for{source}, 'slave 3 port');
 
-ok($ms->is_master_of($slaves[0], $slaves[1]), 'slave 1 is slave of slave 0');
+ok($ms->is_source_of($slaves[0], $slaves[1]), 'slave 1 is slave of slave 0');
 eval {
-   $ms->is_master_of($slaves[0], $slaves[2]);
+   $ms->is_source_of($slaves[0], $slaves[2]);
 };
-like($EVAL_ERROR, qr/but the master's port/, 'slave 2 is not slave of slave 0');
+like($EVAL_ERROR, qr/but the ${source_name}'s port/, 'slave 2 is not slave of slave 0');
 eval {
-   $ms->is_master_of($slaves[2], $slaves[1]);
+   $ms->is_source_of($slaves[2], $slaves[1]);
 };
 like($EVAL_ERROR, qr/has no connected slaves/, 'slave 1 is not slave of slave 2');
 
@@ -334,8 +336,8 @@ map { $ms->start_slave($_) } @slaves;
 sleep(5);
 
 my $res;
-$res = $ms->wait_for_master(
-   master_status => $ms->get_master_status($dbh),
+$res = $ms->wait_for_source(
+   source_status => $ms->get_source_status($dbh),
    slave_dbh     => $slaves[0],
    timeout       => 10,
 );
@@ -348,10 +350,10 @@ $dbh->do('create database test');
 $dbh->do('create table test.t(a int)');
 $dbh->do('insert into test.t(a) values(1)');
 $dbh->do('update test.t set a=sleep(5)');
-diag(`(/tmp/$port_for{slave0}/use -e 'start slave')&`);
+diag(`(/tmp/$port_for{replica0}/use -e 'start ${replica_name}')&`);
 eval {
-   $res = $ms->wait_for_master(
-      master_status => $ms->get_master_status($dbh),
+   $res = $ms->wait_for_source(
+      source_status => $ms->get_source_status($dbh),
       slave_dbh     => $slaves[0],
       timeout       => 1,
    );
@@ -366,11 +368,11 @@ sleep 1;
 $ms->stop_slave($slaves[0]);
 $dbh->do('drop database if exists test'); # Any stmt will do
 eval {
-   $res = $ms->catchup_to_master($slaves[0], $dbh, 10);
+   $res = $ms->catchup_to_source($slaves[0], $dbh, 10);
 };
 diag $EVAL_ERROR if $EVAL_ERROR;
 ok(!$EVAL_ERROR, 'No eval error catching up');
-my $master_stat = $ms->get_master_status($dbh);
+my $master_stat = $ms->get_source_status($dbh);
 my $slave_stat = $ms->get_slave_status($slaves[0]);
 is_deeply(
    $ms->repl_posn($master_stat),
@@ -626,8 +628,8 @@ PXC_SKIP: {
    diag(`/tmp/12345/start >/dev/null 2>&1`);
    diag(`/tmp/12346/start >/dev/null 2>&1`);
    
-   $master_dbh = $sb->get_dbh_for('master');
-   $slave_dbh  = $sb->get_dbh_for('slave1');
+   $master_dbh = $sb->get_dbh_for('source');
+   $slave_dbh  = $sb->get_dbh_for('replica1');
 
    is_deeply(
       $ms->get_replication_filters(dbh=>$master_dbh),
@@ -651,10 +653,10 @@ PXC_SKIP: {
    diag(`mv /tmp/12345/orig.cnf /tmp/12345/my.sandbox.cnf`);
    diag(`/tmp/12345/start >/dev/null`);
    diag(`/tmp/12346/start >/dev/null`);
-   diag(`/tmp/12347/use -e "STOP SLAVE; START SLAVE;" >/dev/null`);
+   diag(`/tmp/12347/use -e "STOP ${replica_name}; START ${replica_name};" >/dev/null`);
 
-   $master_dbh = $sb->get_dbh_for('master');
-   $slave_dbh  = $sb->get_dbh_for('slave1');
+   $master_dbh = $sb->get_dbh_for('source');
+   $slave_dbh  = $sb->get_dbh_for('replica1');
 };
 
 is(
@@ -671,7 +673,7 @@ ok(
 # ############################################################################
 # get_slaves() and DSN table
 # ############################################################################
-$sb->load_file('master', "t/lib/samples/MasterSlave/dsn_table.sql");
+$sb->load_file('source', "t/lib/samples/MasterSlave/dsn_table.sql");
 
 @ARGV = ('--recursion-method', 'dsn=F=/tmp/12345/my.sandbox.cnf,D=dsn_t,t=dsns');
 $o->get_opts();
@@ -702,6 +704,7 @@ is_deeply(
       p => 'msandbox',
       t => undef,
       u => 'msandbox',
+      mysql_ssl => undef,
    },
    'get_slaves() from DSN table'
 );
@@ -766,22 +769,22 @@ SKIP: {
    skip "Only test on mysql 5.7",6 if ( $sandbox_version lt '5.7' );
 
    my ($master1_dbh, $master1_dsn) = $sb->start_sandbox(
-      server => 'chan_master1',
-      type   => 'master',
+      server => 'chan_source1',
+      type   => 'source',
    );
    my ($master2_dbh, $master2_dsn) = $sb->start_sandbox(
-      server => 'chan_master2',
-      type   => 'master',
+      server => 'chan_source2',
+      type   => 'source',
    );
    my ($slave1_dbh, $slave1_dsn) = $sb->start_sandbox(
-      server => 'chan_slave1',
-      type   => 'master',
+      server => 'chan_replica1',
+      type   => 'source',
    );
-   my $slave1_port = $sb->port_for('chan_slave1');
+   my $slave1_port = $sb->port_for('chan_replica1');
    
-   $sb->load_file('chan_master1', "sandbox/gtid_on.sql", undef, no_wait => 1);
-   $sb->load_file('chan_master2', "sandbox/gtid_on.sql", undef, no_wait => 1);
-   $sb->load_file('chan_slave1', "sandbox/slave_channels.sql", undef, no_wait => 1);
+   $sb->load_file('chan_source1', "sandbox/gtid_on.sql", undef, no_wait => 1);
+   $sb->load_file('chan_source2', "sandbox/gtid_on.sql", undef, no_wait => 1);
+   $sb->load_file('chan_replica1', "sandbox/replica_channels.sql", undef, no_wait => 1);
                                                              
    my $chan_slaves;
    eval {
@@ -822,8 +825,8 @@ SKIP: {
 
    my $wfm;
    eval {
-       $wfm = $ms->wait_for_master(
-          master_status => $ms->get_master_status($dbh),
+       $wfm = $ms->wait_for_source(
+          source_status => $ms->get_source_status($dbh),
           slave_dbh     => $slave1_dbh,
           timeout       => 1,
        );
@@ -839,7 +842,7 @@ SKIP: {
    # After stopping one of the replication channels, show slave status returns only one slave
    # but it has a channel name and we didn't specified a channels name in the command line.
    # It should return undef
-   $slave1_dbh->do("STOP SLAVE for channel 'sourcechan2'");
+   $slave1_dbh->do("STOP ${replica_name} for channel 'sourcechan2'");
 
    eval {
        $css = $ms->get_slave_status($slave1_dbh);
@@ -850,7 +853,7 @@ SKIP: {
        'Cannot determine slave in a multi source config without --channel param (only one server)'
    );
 
-   $slave1_dbh->do("START SLAVE for channel 'sourcechan2'");
+   $slave1_dbh->do("START ${replica_name} for channel 'sourcechan2'");
 
    # Now try specifying a channel name 
    $ms->{channel} = 'sourcechan1';
@@ -861,8 +864,8 @@ SKIP: {
        'Returned the correct slave',
    );
 
-   $wfm = $ms->wait_for_master(
-      master_status => $ms->get_master_status($dbh),
+   $wfm = $ms->wait_for_source(
+      source_status => $ms->get_source_status($dbh),
       slave_dbh     => $slave1_dbh,
       timeout       => 1,
    );
@@ -872,7 +875,7 @@ SKIP: {
        'Wait for master returned no error',
    );
 
-   $sb->stop_sandbox(qw(chan_master1 chan_master2 chan_slave1));
+   $sb->stop_sandbox(qw(chan_source1 chan_source2 chan_replica1));
 }
 
 my $connected_slaves = [

@@ -68,6 +68,9 @@ our @EXPORT      = qw(
    $sandbox_version
    $can_load_data
    $test_diff
+   $source_name
+   $source_status
+   $replica_name
 );
 
 our $trunk = $ENV{PERCONA_TOOLKIT_BRANCH};
@@ -77,6 +80,15 @@ eval {
    chomp(my $v = `$trunk/sandbox/test-env version 2>/dev/null`);
    $sandbox_version = $v if $v;
 };
+
+our $source_name = 'source';
+our $source_status = 'binary log';
+our $replica_name = 'replica';
+if ( $sandbox_version < '8.1' || ( $ENV{FORK} || "" eq 'mariadb' ) ) {
+   $source_name = 'master';
+   $source_status = 'master';
+   $replica_name = 'slave';
+}
 
 our $can_load_data = can_load_data();
 
@@ -135,6 +147,12 @@ our $dsn_opts = [
       key  => 'u',
       desc => 'User for login if not current user',
       dsn  => 'user',
+      copy => 1,
+   },
+   {
+      key  => 'mysql_ssl',
+      desc => 'Use SSL',
+      dsn  => 'mysql_ssl',
       copy => 1,
    },
 ];

@@ -20,7 +20,7 @@ use PerconaTest;
 # instead of writing test rows by hand.
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 my $outfile = new Outfile();
 

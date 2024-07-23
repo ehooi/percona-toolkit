@@ -33,8 +33,8 @@ use PerconaTest;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh1 = $sb->get_dbh_for('master');
-my $dbh2 = $sb->get_dbh_for('slave1');
+my $dbh1 = $sb->get_dbh_for('source');
+my $dbh2 = $sb->get_dbh_for('replica1');
 
 if ( !$dbh1 ) {
    plan skip_all => "Cannot connect to sandbox master";
@@ -99,7 +99,7 @@ sub get_id {
 # Test the checksum method.
 # #############################################################################
 
-$sb->load_file('master', "t/lib/samples/compare-results.sql");
+$sb->load_file('source', "t/lib/samples/compare-results.sql");
 
 $cr = new CompareResults(
    method     => 'checksum',
@@ -308,7 +308,7 @@ my $tmpdir = '/tmp/mk-upgrade-res';
 
 diag(`rm -rf $tmpdir 2>/dev/null; mkdir $tmpdir`);
 
-$sb->load_file('master', "t/lib/samples/compare-results.sql");
+$sb->load_file('source', "t/lib/samples/compare-results.sql");
 
 $cr = new CompareResults(
    method     => 'rows',

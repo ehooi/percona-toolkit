@@ -38,41 +38,42 @@ $Data::Dumper::Sortkeys  = 1;
 $Data::Dumper::Quotekeys = 0;
 use constant PTDEBUG    => $ENV{PTDEBUG}    || 0;
 use constant PTDEVDEBUG => $ENV{PTDEVDEBUG} || 0;
+use VersionParser;
 
 use IO::Socket::INET;
 
 my $trunk = $ENV{PERCONA_TOOLKIT_BRANCH};
 
 my %port_for = (
-   master  => 12345,
-   slave1  => 12346,
-   slave2  => 12347,
-   master1 => 12348, # master-master
-   master2 => 12349, # master-master
-   master3 => 2900,
-   master4 => 2901,
-   master5 => 2902,
-   master6 => 2903,
-   node1   => 12345, # pxc...
-   node2   => 12346,
-   node3   => 12347,
-   node4   => 2900,
-   node5   => 2901,
-   node6   => 2902,
-   node7   => 2903,
-   cmaster => 12349, # master -> cluster
-   cslave1 => 12348, # cluster -> slave
-   host1   => 12345, # pt-upgrade
-   host2   => 12348, # pt-upgrade
-   chan_master1 => 2900,
-   chan_master2 => 2901,
-   chan_slave1  => 2902,
-   chan_slave2  => 2903,
+   source    => 12345,
+   replica1  => 12346,
+   replica2  => 12347,
+   source1   => 12348, # source-source
+   source2   => 12349, # source-source
+   source3   => 2900,
+   source4   => 2901,
+   source5   => 2902,
+   source6   => 2903,
+   node1     => 12345, # pxc...
+   node2     => 12346,
+   node3     => 12347,
+   node4     => 2900,
+   node5     => 2901,
+   node6     => 2902,
+   node7     => 2903,
+   csource   => 12349, # source -> cluster
+   creplica1 => 12348, # cluster -> replica
+   host1     => 12345, # pt-upgrade
+   host2     => 12348, # pt-upgrade
+   chan_source1   => 2900,
+   chan_source2   => 2901,
+   chan_replica1  => 2902,
+   chan_replica2  => 2903,
 );
 
 my %server_type = (
-   master   => 1,
-   slave    => 1,
+   source   => 1,
+   replica  => 1,
    node     => 1,
 );
 
@@ -134,7 +135,7 @@ sub create_dbs {
 sub get_dbh_for {
    my ( $self, $server, $cxn_ops, $user ) = @_;
    _check_server($server);
-   $cxn_ops ||= { AutoCommit => 1, mysql_enable_utf8 => 1 };
+   $cxn_ops ||= { AutoCommit => 1, mysql_enable_utf8 => 1, mysql_ssl => 1 };
    $user    ||= 'msandbox';
    PTDEBUG && _d('dbh for', $server, 'on port', $port_for{$server});
    my $dp = $self->{DSNParser};
@@ -144,7 +145,7 @@ sub get_dbh_for {
    # also quite convenient when using an affected OS
    # TODO: this fails if the server isn't started yet.
    $cxn_ops->{L} = 1 if !exists $cxn_ops->{L}
-                     && !$self->can_load_data('master');
+                     && !$self->can_load_data('source');
    eval { $dbh = $dp->get_dbh($dp->get_cxn_params($dsn), $cxn_ops) };
    if ( $EVAL_ERROR ) {
       die 'Failed to get dbh for ' . $server . ': ' . $EVAL_ERROR;
@@ -216,7 +217,7 @@ sub wipe_clean {
    return;
 }
 
-# Returns a string if there is a problem with the master.
+# Returns a string if there is a problem with the source.
 sub master_is_ok {
    my ($self, $master) = @_;
    my $master_dbh = $self->get_dbh_for($master);
@@ -227,11 +228,11 @@ sub master_is_ok {
    return;
 }
 
-# Returns a string if there is a problem with the slave.
+# Returns a string if there is a problem with the replica.
 sub slave_is_ok {
    my ($self, $slave, $master, $ro) = @_;
    return if $self->is_cluster_node($slave);
-   PTDEBUG && _d('Checking if slave', $slave, $port_for{$slave},
+   PTDEBUG && _d('Checking if replica', $slave, $port_for{$slave},
       'to', $master, $port_for{$master}, 'is ok');
 
    my $slave_dbh = $self->get_dbh_for($slave);
@@ -239,11 +240,16 @@ sub slave_is_ok {
       return  "Sandbox $slave " . $port_for{$slave} . " is down.";
    }
 
+   my $vp = VersionParser->new($slave_dbh);
+   my $replica_name = 'replica';
+   if ( $vp->cmp('8.1') < 0 || $vp->flavor() =~ m/maria/i ) {
+      $replica_name = 'slave';
+   }
    my $master_port = $port_for{$master};
    my $status = $slave_dbh->selectall_arrayref(
-      "SHOW SLAVE STATUS", { Slice => {} });
+      "SHOW ${replica_name} STATUS", { Slice => {} });
    if ( !$status || !@$status ) {
-      return "Sandbox $slave " . $port_for{$slave} . " is not a slave.";
+      return "Sandbox $slave " . $port_for{$slave} . " is not a replica.";
    }
 
    if ( $status->[0]->{last_error} ) {
@@ -252,7 +258,7 @@ sub slave_is_ok {
          . $status->[0]->{last_error} . ".";
    }
 
-   foreach my $thd ( qw(slave_io_running slave_sql_running) ) {
+   foreach my $thd ( "${replica_name}_io_running", "${replica_name}_sql_running" ) {
       if ( ($status->[0]->{$thd} || 'No') eq 'No' ) {
          warn Dumper($status);
          return "Sandbox $slave " . $port_for{$slave} . " $thd thread "
@@ -272,11 +278,11 @@ sub slave_is_ok {
    my $total_t = 0;
    while ( defined $status->[0]->{seconds_behind_master}
            &&  $status->[0]->{seconds_behind_master} > 0 ) {
-      PTDEBUG && _d('Slave lag:', $status->[0]->{seconds_behind_master});
+      PTDEBUG && _d('Replica lag:', $status->[0]->{seconds_behind_master});
       sleep $sleep_t;
       $total_t += $sleep_t;
       $status = $slave_dbh->selectall_arrayref(
-         "SHOW SLAVE STATUS", { Slice => {} });
+         "SHOW ${replica_name} STATUS", { Slice => {} });
       if ( $total_t == 5 ) {
          Test::More::diag("Waiting for sandbox $slave " . $port_for{$slave}
             . " to catch up...");
@@ -293,7 +299,7 @@ sub leftover_servers {
    my ($self) = @_;
    PTDEBUG && _d('Checking for leftover servers');
    foreach my $serverno ( 1..6 ) {
-      my $server = "master$serverno";
+      my $server = "source$serverno";
       my $dbh = eval { $self->get_dbh_for($server) };
       if ( $dbh ) {
          $dbh->disconnect();
@@ -322,13 +328,13 @@ sub leftover_databases {
 sub ok {
    my ($self) = @_;
    my @errors;
-   # First, wait for all slaves to be caught up to their masters.
+   # First, wait for all replicas to be caught up to their sources.
    $self->wait_for_slaves();
-   push @errors, $self->master_is_ok('master');
-   push @errors, $self->slave_is_ok('slave1', 'master');
-   push @errors, $self->slave_is_ok('slave2', 'slave1', 1);
+   push @errors, $self->master_is_ok('source');
+   push @errors, $self->slave_is_ok('replica1', 'source');
+   push @errors, $self->slave_is_ok('replica2', 'replica1', 1);
    push @errors, $self->leftover_servers();
-   foreach my $host ( qw(master slave1 slave2) ) {
+   foreach my $host ( qw(source replica1 replica2) ) {
       push @errors, $self->leftover_databases($host);
       push @errors, $self->verify_test_data($host);
    }
@@ -337,11 +343,11 @@ sub ok {
    return !@errors;
 }
 
-# Dings a heartbeat on the master, and waits until the slave catches up fully.
+# Dings a heartbeat on the source, and waits until the replica catches up fully.
 sub wait_for_slaves {
    my ($self, %args) = @_;
-   my $master_dbh = $self->get_dbh_for($args{master} || 'master');
-   my $slave2_dbh = $self->get_dbh_for($args{slave}  || 'slave2');
+   my $master_dbh = $self->get_dbh_for($args{source} || 'source');
+   my $slave2_dbh = $self->get_dbh_for($args{replica}  || 'replica2');
    my ($ping) = $master_dbh->selectrow_array("SELECT MD5(RAND())");
    $master_dbh->do("UPDATE percona_test.sentinel SET ping='$ping' WHERE id=1 /* wait_for_slaves */");
    PerconaTest::wait_until(
@@ -353,14 +359,14 @@ sub wait_for_slaves {
    );
 }
 
-# Verifies that master, slave1, and slave2 have a faithful copy of the mysql and
+# Verifies that source, replica1, and replica2 have a faithful copy of the mysql and
 # sakila databases. The reference data is inserted into percona_test.checksums
 # by util/checksum-test-dataset when sandbox/test-env starts the environment.
 sub verify_test_data {
    my ($self, $host) = @_;
 
-   # Get the known-good checksums from the master.
-   my $master = $self->get_dbh_for('master');
+   # Get the known-good checksums from the source.
+   my $master = $self->get_dbh_for('source');
    my $ref    = $self->{checksum_ref} || $master->selectall_hashref(
          'SELECT * FROM percona_test.checksums',
          'db_tbl');
@@ -391,7 +397,7 @@ sub verify_test_data {
 
    my @checksums = @{$dbh->selectall_arrayref($sql, {Slice => {} })};
 
-   # Diff the two sets of checksums: host to master (ref).
+   # Diff the two sets of checksums: host to source (ref).
    my @diffs;
    foreach my $c ( @checksums ) {
       next unless $c->{checksum};
@@ -427,7 +433,7 @@ sub genlog {
 
 sub clear_genlogs {
    my ($self, @hosts) = @_;
-   @hosts = qw(master slave1 slave2) unless scalar @hosts;
+   @hosts = qw(source replica1 replica2) unless scalar @hosts;
    foreach my $host ( @hosts ) {
       PTDEVDEBUG && _d('Clearing general log on', $host);
       Test::More::diag(`echo > /tmp/$port_for{$host}/data/genlog`);
@@ -463,7 +469,7 @@ sub can_load_data {
 
 sub set_as_slave {
    my ($self, $server, $master_server, @extras) = @_;
-   PTDEBUG && _d("Setting $server as slave of $master_server");
+   PTDEBUG && _d("Setting $server as replica of $master_server");
    my $master_port = $port_for{$master_server};
    my $sql = join ", ", qq{change master to master_host='127.0.0.1'},
                         qq{master_user='msandbox'},
@@ -489,14 +495,14 @@ sub start_sandbox {
    _check_server($server);
    my $port = $port_for{$server};
 
-   if ( $type eq 'master') {
+   if ( $type eq 'source') {
       my $out = `$env $trunk/sandbox/start-sandbox $type $port`;
       die $out if $CHILD_ERROR;
    }
-   elsif ( $type eq 'slave' ) {
-      die "I need a slave arg" unless $args{master};
-      _check_server($args{master});
-      my $master_port = $port_for{$args{master}};
+   elsif ( $type eq 'replica' ) {
+      die "I need a replica arg" unless $args{source};
+      _check_server($args{source});
+      my $master_port = $port_for{$args{source}};
 
       my $out = `$env $trunk/sandbox/start-sandbox $type $port $master_port`;
       die $out if $CHILD_ERROR;
@@ -593,7 +599,7 @@ sub has_engine {
    my $sql = "SHOW ENGINES";
    my @engines = @{$dbh->selectall_arrayref($sql, {Slice => {} })};
 
-   # Diff the two sets of checksums: host to master (ref).
+   # Diff the two sets of checksums: host to source (ref).
    my $has_engine=0;
    foreach my $engine ( @engines ) {
       if ( $engine->{engine} =~ m/$want_engine/i ) {

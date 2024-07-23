@@ -30,7 +30,7 @@ $Data::Dumper::Quotekeys = 0;
 my $q   = new Quoter();
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 my $tp = new TableParser(Quoter => $q);
 my $fi = new FileIterator();
@@ -178,7 +178,7 @@ SKIP: {
    # ########################################################################
    # Test filters.
    # ########################################################################
-   $sb->load_file('master', "t/lib/samples/SchemaIterator.sql");
+   $sb->load_file('source', "t/lib/samples/SchemaIterator.sql");
    
    test_so(
       filters   => [qw(-d this_db_does_not_exist)],
@@ -488,10 +488,10 @@ SKIP: {
    my $master3_port   = 2900;
    my $master_basedir = "/tmp/$master3_port";
    diag(`$trunk/sandbox/stop-sandbox $master3_port >/dev/null`);
-   diag(`$trunk/sandbox/start-sandbox master $master3_port >/dev/null`);
-   my $dbh3 = $sb->get_dbh_for("master3");
+   diag(`$trunk/sandbox/start-sandbox source $master3_port >/dev/null`);
+   my $dbh3 = $sb->get_dbh_for("source3");
 
-   $sb->load_file('master3', "t/lib/samples/bug_1047335_crashed_table.sql");
+   $sb->load_file('source3', "t/lib/samples/bug_1047335_crashed_table.sql");
 
    # Create the SI object before crashing the table
    my $tmp_si = new SchemaIterator(
@@ -600,7 +600,7 @@ diag(`/tmp/12345/use < $trunk/t/lib/samples/100-dbs-drop.sql`);
 # https://bugs.launchpad.net/percona-toolkit/+bug/1304062 
 # #############################################################################
 
-$sb->load_file('master', "t/lib/samples/SchemaIterator.sql");
+$sb->load_file('source', "t/lib/samples/SchemaIterator.sql");
 $dbh->do("CREATE TABLE d3.t1 (id int auto_increment primary key, c  char(8))");
 
 test_so(

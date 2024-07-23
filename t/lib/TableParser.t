@@ -20,7 +20,7 @@ use PerconaTest;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 my $q   = new Quoter();
 my $tp  = new TableParser(Quoter=>$q);
@@ -69,7 +69,7 @@ SKIP: {
    );
 
    # Bug 932442: column with 2 spaces
-   $sb->load_file('master', "t/pt-table-checksum/samples/2-space-col.sql");
+   $sb->load_file('source', "t/pt-table-checksum/samples/2-space-col.sql");
    $ddl = $tp->get_create_table($dbh, qw(test t));
    like(
       $ddl,
@@ -749,11 +749,11 @@ is_deeply(
 SKIP: {
    skip 'Cannot connect to sandbox master', 8 unless $dbh;
 
-   $sb->load_file('master', 't/lib/samples/check_table.sql');
+   $sb->load_file('source', 't/lib/samples/check_table.sql');
 
    # msandbox user does not have GRANT privs.
    my $root_dbh = DBI->connect(
-      "DBI:mysql:host=127.0.0.1;port=12345", 'root', 'msandbox',
+      "DBI:mysql:host=127.0.0.1;port=12345;mysql_ssl=1", 'root', 'msandbox',
       { PrintError => 0, RaiseError => 1 });
 
    $root_dbh->do(q[CREATE USER 'user'@'%' IDENTIFIED BY '';] ) || die($root_dbh->errstr);

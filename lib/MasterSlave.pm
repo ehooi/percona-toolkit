@@ -19,7 +19,7 @@
 # ###########################################################################
 {
 # Package: MasterSlave
-# MasterSlave handles common tasks related to master-slave setups.
+# MasterSlave handles common tasks related to source-slave setups.
 package MasterSlave;
 
 use strict;
@@ -238,12 +238,12 @@ sub recurse_to_slaves {
       }
    } until (defined $id);
    PTDEBUG && _d('Working on server ID', $id);
-   my $master_thinks_i_am = $dsn->{server_id};
+   my $source_thinks_i_am = $dsn->{server_id};
    if ( !defined $id
-       || ( defined $master_thinks_i_am && $master_thinks_i_am != $id )
+       || ( defined $source_thinks_i_am && $source_thinks_i_am != $id )
        || $args->{server_ids_seen}->{$id}++
    ) {
-      PTDEBUG && _d('Server ID seen, or not what master said');
+      PTDEBUG && _d('Server ID seen, or not what source said');
       if ( $args->{skip_callback} ) {
          $args->{skip_callback}->($dsn, $dbh, $level, $args->{parent});
       }
@@ -255,7 +255,7 @@ sub recurse_to_slaves {
    if ( !defined $recurse || $level < $recurse ) {
 
       my @slaves =
-         grep { !$_->{master_id} || $_->{master_id} == $id } # Only my slaves.
+         grep { !$_->{source_id} || $_->{source_id} == $id } # Only my slaves.
          $self->find_slave_hosts($dp, $dbh, $dsn, $methods);
 
       foreach my $slave ( @slaves ) {
@@ -274,7 +274,7 @@ sub recurse_to_slaves {
 # from SHOW SLAVE HOSTS may be important.  Then only the hosts methods is used.
 #
 # Returns a list of DSN hashes.  Optional extra keys in the DSN hash are
-# master_id and server_id.  Also, the 'source' key is either 'processlist' or
+# source_id and server_id.  Also, the 'source' key is either 'processlist' or
 # 'hosts'.
 #
 # If a method is given, it becomes the preferred (first tried) method.
@@ -330,13 +330,17 @@ sub _process_slaves_list {
 # SHOW SLAVE HOSTS is significantly less reliable.
 # Machines tend to share the host list around with every machine in the
 # replication hierarchy, but they don't update each other when machines
-# disconnect or change to use a different master or something.  So there is
+# disconnect or change to use a different source or something.  So there is
 # lots of cruft in SHOW SLAVE HOSTS.
 sub _find_slaves_by_hosts {
    my ( $self, $dsn_parser, $dbh, $dsn ) = @_;
 
    my @slaves;
-   my $sql = 'SHOW SLAVE HOSTS';
+   my $server_version = VersionParser->new($dbh);
+   my $sql = 'SHOW REPLICAS';
+   if ( $server_version < '8.1' || $server_version->flavor() =~ m/maria/ ) {
+      $sql = 'SHOW SLAVE HOSTS';
+   }
    PTDEBUG && _d($dbh, $sql);
    @slaves = @{$dbh->selectall_arrayref($sql, { Slice => {} })};
 
@@ -351,7 +355,7 @@ sub _find_slaves_by_hosts {
             . ( $hash{password} ? ",p=$hash{password}" : '');
          my $dsn           = $dsn_parser->parse($spec, $dsn);
          $dsn->{server_id} = $hash{server_id};
-         $dsn->{master_id} = $hash{master_id};
+         $dsn->{source_id} = $hash{source_id};
          $dsn->{source}    = 'hosts';
          $dsn;
       } @slaves;
@@ -413,62 +417,80 @@ sub get_connected_slaves {
    @{$dbh->selectall_arrayref($sql, { Slice => {} })};
 }
 
-# Verifies that $master is really the master of $slave.  This is not an exact
+# Verifies that $source is really the source of $slave.  This is not an exact
 # science, but there is a decent chance of catching some obvious cases when it
-# is not the master.  If not the master, it dies; otherwise returns true.
-sub is_master_of {
-   my ( $self, $master, $slave ) = @_;
-   my $master_status = $self->get_master_status($master)
-      or die "The server specified as a master is not a master";
-   my $slave_status  = $self->get_slave_status($slave)
-      or die "The server specified as a slave is not a slave";
-   my @connected     = $self->get_connected_slaves($master)
-      or die "The server specified as a master has no connected slaves";
-   my (undef, $port) = $master->selectrow_array("SHOW VARIABLES LIKE 'port'");
+# is not the source.  If not the source, it dies; otherwise returns true.
+sub is_source_of {
+   my ( $self, $source, $slave ) = @_;
 
-   if ( $port != $slave_status->{master_port} ) {
-      die "The slave is connected to $slave_status->{master_port} "
-         . "but the master's port is $port";
+   my $replica_version = VersionParser->new($slave);
+   my $source_name = 'source';
+   my $source_port = 'source_port';
+   if ( $replica_version < '8.1' || $replica_version->flavor() =~ m/maria/ ) {
+      $source_name = 'master';
+      $source_port = 'master_port';
    }
 
-   if ( !grep { $slave_status->{master_user} eq $_->{user} } @connected ) {
+   my $source_status = $self->get_source_status($source)
+      or die "The server specified as a source is not a source";
+   my $slave_status  = $self->get_slave_status($slave)
+      or die "The server specified as a slave is not a slave";
+   my @connected     = $self->get_connected_slaves($source)
+      or die "The server specified as a source has no connected slaves";
+   my (undef, $port) = $source->selectrow_array("SHOW VARIABLES LIKE 'port'");
+
+   if ( $port != $slave_status->{$source_port} ) {
+      die "The slave is connected to $slave_status->{$source_port} "
+         . "but the source's port is $port";
+   }
+
+   if ( !grep { $slave_status->{source_user} eq $_->{user} } @connected ) {
       die "I don't see any slave I/O thread connected with user "
-         . $slave_status->{master_user};
+         . $slave_status->{source_user};
    }
 
    if ( ($slave_status->{slave_io_state} || '')
-      eq 'Waiting for master to send event' )
+      eq 'Waiting for ${source_name} to send event' )
    {
-      # The slave thinks its I/O thread is caught up to the master.  Let's
-      # compare and make sure the master and slave are reasonably close to each
+      # The slave thinks its I/O thread is caught up to the source.  Let's
+      # compare and make sure the source and slave are reasonably close to each
       # other.  Note that this is one of the few places where I check the I/O
       # thread positions instead of the SQL thread positions!
       # Master_Log_File/Read_Master_Log_Pos is the I/O thread's position on the
-      # master.
-      my ( $master_log_name, $master_log_num )
-         = $master_status->{file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
+      # source.
+      my ( $source_log_name, $source_log_num )
+         = $source_status->{file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
       my ( $slave_log_name, $slave_log_num )
-         = $slave_status->{master_log_file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
-      if ( $master_log_name ne $slave_log_name
-         || abs($master_log_num - $slave_log_num) > 1 )
+         = $slave_status->{source_log_file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
+      if ( $source_log_name ne $slave_log_name
+         || abs($source_log_num - $slave_log_num) > 1 )
       {
          die "The slave thinks it is reading from "
-            . "$slave_status->{master_log_file},  but the "
-            . "master is writing to $master_status->{file}";
+            . "$slave_status->{source_log_file},  but the "
+            . "source is writing to $source_status->{file}";
       }
    }
    return 1;
 }
 
-# Figures out how to connect to the master, by examining SHOW SLAVE STATUS.  But
+# Figures out how to connect to the source, by examining SHOW SLAVE STATUS.  But
 # does NOT use the value from Master_User for the username, because typically we
 # want to perform operations as the username that was specified (usually to the
 # program's --user option, or in a DSN), rather than as the replication user,
 # which is often restricted.
-sub get_master_dsn {
+sub get_source_dsn {
    my ( $self, $dbh, $dsn, $dsn_parser ) = @_;
-   my $master = $self->get_slave_status($dbh) or return undef;
-   my $spec   = "h=$master->{master_host},P=$master->{master_port}";
+
+   my $vp = VersionParser->new($dbh);
+   my $source_host = 'source_host';
+   my $source_port = 'source_port';
+   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      $source_host = 'master_host';
+      $source_port = 'master_port';
+   }
+
+   my $source = $self->get_slave_status($dbh) or return undef;
+   my $spec   = "h=$source->{${source_host}},P=$source->{${source_port}}";
    return       $dsn_parser->parse($spec, $dsn);
 }
 
@@ -476,17 +498,23 @@ sub get_master_dsn {
 sub get_slave_status {
    my ( $self, $dbh ) = @_;
 
+   my $server_version = VersionParser->new($dbh);
+   my $replica_name = 'replica';
+   if ( $server_version < '8.1' || $server_version->flavor() =~ m/maria/ ) {
+      $replica_name = 'slave';
+   }
+
    if ( !$self->{not_a_slave}->{$dbh} ) {
       my $sth = $self->{sths}->{$dbh}->{SLAVE_STATUS}
-            ||= $dbh->prepare('SHOW SLAVE STATUS');
-      PTDEBUG && _d($dbh, 'SHOW SLAVE STATUS');
+            ||= $dbh->prepare("SHOW ${replica_name} STATUS");
+      PTDEBUG && _d($dbh, "SHOW ${replica_name} STATUS");
       $sth->execute();
       my ($sss_rows) = $sth->fetchall_arrayref({}); # Show Slave Status rows
 
       # If SHOW SLAVE STATUS returns more than one row it means that this slave is connected to more
-      # than one master using replication channels.
+      # than one source using replication channels.
       # If we have a channel name as a parameter, we need to select the correct row and return it.
-      # If we don't have a channel name as a parameter, there is no way to know what the correct master is so,
+      # If we don't have a channel name as a parameter, there is no way to know what the correct source is so,
       # return an error.
       my $ss;
       if ( $sss_rows && @$sss_rows ) {
@@ -531,23 +559,29 @@ sub get_slave_status {
 }
 
 # Gets SHOW MASTER STATUS, with column names all lowercased, as a hashref.
-sub get_master_status {
+sub get_source_status {
    my ( $self, $dbh ) = @_;
 
-   if ( $self->{not_a_master}->{$dbh} ) {
-      PTDEBUG && _d('Server on dbh', $dbh, 'is not a master');
+   if ( $self->{not_a_source}->{$dbh} ) {
+      PTDEBUG && _d('Server on dbh', $dbh, 'is not a source');
       return;
+   }
+
+   my $vp = VersionParser->new($dbh);
+   my $source_name = 'binary log';
+   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      $source_name = 'master';
    }
 
    my $sth;
    if ( $self->{sths}->{$dbh} && $dbh && $self->{sths}->{$dbh} == $dbh ) {
       $sth = $self->{sths}->{$dbh}->{MASTER_STATUS}
-         ||= $dbh->prepare('SHOW MASTER STATUS');
+         ||= $dbh->prepare("SHOW ${source_name} STATUS");
    }
    else {
-      $sth = $dbh->prepare('SHOW MASTER STATUS');
+      $sth = $dbh->prepare("SHOW ${source_name} STATUS");
    }
-   PTDEBUG && _d($dbh, 'SHOW MASTER STATUS');
+   PTDEBUG && _d($dbh, "SHOW ${source_name} STATUS");
    $sth->execute();
    my ($ms) = @{$sth->fetchall_arrayref({})};
    PTDEBUG && _d(
@@ -555,21 +589,21 @@ sub get_master_status {
           : '');
 
    if ( !$ms || scalar keys %$ms < 2 ) {
-      PTDEBUG && _d('Server on dbh', $dbh, 'does not seem to be a master');
-      $self->{not_a_master}->{$dbh}++;
+      PTDEBUG && _d('Server on dbh', $dbh, 'does not seem to be a source');
+      $self->{not_a_source}->{$dbh}++;
    }
 
   return { map { lc($_) => $ms->{$_} } keys %$ms }; # lowercase the keys
 }
 
-# Sub: wait_for_master
-#   Execute MASTER_POS_WAIT() to make slave wait for its master.
+# Sub: wait_for_source
+#   Execute MASTER_POS_WAIT() to make slave wait for its source.
 #
 # Parameters:
 #   %args - Arguments
 #
 # Required Arguments:
-#   * master_status - Hashref returned by <get_master_status()>
+#   * source_status - Hashref returned by <get_source_status()>
 #   * slave_dbh     - dbh for slave host
 #
 # Optional Arguments:
@@ -583,18 +617,18 @@ sub get_master_status {
 #     waited => the number of seconds waited, might be zero
 #   }
 #   (end code)
-sub wait_for_master {
+sub wait_for_source {
    my ( $self, %args ) = @_;
-   my @required_args = qw(master_status slave_dbh);
+   my @required_args = qw(source_status slave_dbh);
    foreach my $arg ( @required_args ) {
       die "I need a $arg argument" unless $args{$arg};
    }
-   my ($master_status, $slave_dbh) = @args{@required_args};
+   my ($source_status, $slave_dbh) = @args{@required_args};
    my $timeout       = $args{timeout} || 60;
 
    my $result;
    my $waited;
-   if ( $master_status ) {
+   if ( $source_status ) {
       my $slave_status;
       eval {
           $slave_status = $self->get_slave_status($slave_dbh);
@@ -603,12 +637,16 @@ sub wait_for_master {
           return {
               result => undef,
               waited => 0,
-              error  =>'Wait for master: this is a multi-master slave but "channel" was not specified on the command line',
+              error  =>'Wait for source: this is a multi-source slave but "channel" was not specified on the command line',
           };
       }
-      my $server_version = VersionParser->new($slave_dbh);
-      my $channel_sql = $server_version > '5.6' && $self->{channel} ? ", '$self->{channel}'" : '';
-      my $sql = "SELECT MASTER_POS_WAIT('$master_status->{file}', $master_status->{position}, $timeout $channel_sql)";
+      my $vp = VersionParser->new($slave_dbh);
+      my $source_name = 'source';
+      if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+         $source_name = 'master';
+      }
+      my $channel_sql = $vp > '5.6' && $self->{channel} ? ", '$self->{channel}'" : '';
+      my $sql = "SELECT ${source_name}_POS_WAIT('$source_status->{file}', $source_status->{position}, $timeout $channel_sql)";
       PTDEBUG && _d($slave_dbh, $sql);
       my $start = time;
       ($result) = $slave_dbh->selectrow_array($sql);
@@ -623,7 +661,7 @@ sub wait_for_master {
       PTDEBUG && _d("Waited", $waited, "seconds");
    }
    else {
-      PTDEBUG && _d('Not waiting: this server is not a master');
+      PTDEBUG && _d('Not waiting: this server is not a source');
    }
 
    return {
@@ -635,8 +673,13 @@ sub wait_for_master {
 # Executes STOP SLAVE.
 sub stop_slave {
    my ( $self, $dbh ) = @_;
+   my $vp = VersionParser->new($dbh);
+   my $replica_name = 'replica';
+   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      $replica_name = 'slave';
+   }
    my $sth = $self->{sths}->{$dbh}->{STOP_SLAVE}
-         ||= $dbh->prepare('STOP SLAVE');
+         ||= $dbh->prepare("STOP ${replica_name}");
    PTDEBUG && _d($dbh, $sth->{Statement});
    $sth->execute();
 }
@@ -644,50 +687,57 @@ sub stop_slave {
 # Executes START SLAVE, optionally with UNTIL.
 sub start_slave {
    my ( $self, $dbh, $pos ) = @_;
+   my $vp = VersionParser->new($dbh);
+   my $source_name = 'source';
+   my $replica_name = 'replica';
+   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      $source_name = 'master';
+      $replica_name = 'slave';
+   }
    if ( $pos ) {
       # Just like with CHANGE MASTER TO, you can't quote the position.
-      my $sql = "START SLAVE UNTIL MASTER_LOG_FILE='$pos->{file}', "
-              . "MASTER_LOG_POS=$pos->{position}";
+      my $sql = "START ${replica_name} UNTIL ${source_name}_LOG_FILE='$pos->{file}', "
+              . "${source_name}_LOG_POS=$pos->{position}";
       PTDEBUG && _d($dbh, $sql);
       $dbh->do($sql);
    }
    else {
       my $sth = $self->{sths}->{$dbh}->{START_SLAVE}
-            ||= $dbh->prepare('START SLAVE');
+            ||= $dbh->prepare("START ${replica_name}");
       PTDEBUG && _d($dbh, $sth->{Statement});
       $sth->execute();
    }
 }
 
-# Waits for the slave to catch up to its master, using START SLAVE UNTIL.  When
-# complete, the slave is caught up to the master, and the slave process is
+# Waits for the slave to catch up to its source, using START SLAVE UNTIL.  When
+# complete, the slave is caught up to the source, and the slave process is
 # stopped on both servers.
-sub catchup_to_master {
-   my ( $self, $slave, $master, $timeout ) = @_;
-   $self->stop_slave($master);
+sub catchup_to_source {
+   my ( $self, $slave, $source, $timeout ) = @_;
+   $self->stop_slave($source);
    $self->stop_slave($slave);
    my $slave_status  = $self->get_slave_status($slave);
    my $slave_pos     = $self->repl_posn($slave_status);
-   my $master_status = $self->get_master_status($master);
-   my $master_pos    = $self->repl_posn($master_status);
-   PTDEBUG && _d('Master position:', $self->pos_to_string($master_pos),
+   my $source_status = $self->get_source_status($source);
+   my $source_pos    = $self->repl_posn($source_status);
+   PTDEBUG && _d('Master position:', $self->pos_to_string($source_pos),
       'Slave position:', $self->pos_to_string($slave_pos));
 
    my $result;
-   if ( $self->pos_cmp($slave_pos, $master_pos) < 0 ) {
-      PTDEBUG && _d('Waiting for slave to catch up to master');
-      $self->start_slave($slave, $master_pos);
+   if ( $self->pos_cmp($slave_pos, $source_pos) < 0 ) {
+      PTDEBUG && _d('Waiting for slave to catch up to source');
+      $self->start_slave($slave, $source_pos);
 
       # The slave may catch up instantly and stop, in which case
       # MASTER_POS_WAIT will return NULL and $result->{result} will be undef.
       # We must catch this; if it returns NULL, then we check that
       # its position is as desired.
-      # TODO: what if master_pos_wait times out and $result == -1? retry?
-      $result = $self->wait_for_master(
-            master_status => $master_status,
+      # TODO: what if source_pos_wait times out and $result == -1? retry?
+      $result = $self->wait_for_source(
+            source_status => $source_status,
             slave_dbh     => $slave,
             timeout       => $timeout,
-            master_status => $master_status
+            source_status => $source_status
       );
       if ($result->{error}) {
           die $result->{error};
@@ -696,22 +746,22 @@ sub catchup_to_master {
          $slave_status = $self->get_slave_status($slave);
          if ( !$self->slave_is_running($slave_status) ) {
             PTDEBUG && _d('Master position:',
-               $self->pos_to_string($master_pos),
+               $self->pos_to_string($source_pos),
                'Slave position:', $self->pos_to_string($slave_pos));
             $slave_pos = $self->repl_posn($slave_status);
-            if ( $self->pos_cmp($slave_pos, $master_pos) != 0 ) {
+            if ( $self->pos_cmp($slave_pos, $source_pos) != 0 ) {
                die "MASTER_POS_WAIT() returned NULL but slave has not "
-                  . "caught up to master";
+                  . "caught up to source";
             }
-            PTDEBUG && _d('Slave is caught up to master and stopped');
+            PTDEBUG && _d('Slave is caught up to source and stopped');
          }
          else {
-            die "Slave has not caught up to master and it is still running";
+            die "Slave has not caught up to source and it is still running";
          }
       }
    }
    else {
-      PTDEBUG && _d("Slave is already caught up to master");
+      PTDEBUG && _d("Slave is already caught up to source");
    }
 
    return $result;
@@ -776,6 +826,13 @@ sub repl_posn {
          position => $status->{position},
       };
    }
+   elsif ( exists $status->{relay_source_log_file} && exists $status->{exec_source_log_pos} ) {
+      # We are on MySQL 8.0.22+
+      return {
+         file     => $status->{relay_source_log_file},
+         position => $status->{exec_source_log_pos},
+      };
+   }
    else {
       return {
          file     => $status->{relay_master_log_file},
@@ -787,9 +844,16 @@ sub repl_posn {
 # Gets the slave's lag.  TODO: permit using a heartbeat table.
 sub get_slave_lag {
    my ( $self, $dbh ) = @_;
+   
+   my $vp = VersionParser->new($dbh);
+   my $source_name = 'source';
+   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      $source_name = 'master';
+   }
+
    my $stat = $self->get_slave_status($dbh);
    return unless $stat;  # server is not a slave
-   return $stat->{seconds_behind_master};
+   return $stat->{"seconds_behind_${source_name}"};
 }
 
 # Compares two replication positions and returns -1, 0, or 1 just as the cmp
@@ -834,7 +898,7 @@ sub short_host {
 #
 # Arguments:
 #   type            - Which kind of repl thread to match:
-#                     all, binlog_dump (master), slave_io, or slave_sql
+#                     all, binlog_dump (source), slave_io, or slave_sql
 #                     (default: all)
 #   check_known_ids - Check known replication thread IDs (default: yes)
 #
@@ -886,7 +950,7 @@ sub is_replication_thread {
             }
          }
          else {
-            # Type is "all" and it's not a master (binlog_dump) thread,
+            # Type is "all" and it's not a source (binlog_dump) thread,
             # else we wouldn't have gotten here.  It's either of the 2
             # slave threads and we don't care which.
             $match = 1;
@@ -929,7 +993,7 @@ sub is_replication_thread {
 #   %args - Arguments
 #
 # Required Arguments:
-#   dbh - dbh, master or slave
+#   dbh - dbh, source or slave
 #
 # Returns:
 #   Hashref of any replication filters.  If none are set, an empty hashref
@@ -944,7 +1008,7 @@ sub get_replication_filters {
 
    my %filters = ();
 
-   my $status = $self->get_master_status($dbh);
+   my $status = $self->get_source_status($dbh);
    if ( $status ) {
       map { $filters{$_} = $status->{$_} }
       grep { defined $status->{$_} && $status->{$_} ne '' }

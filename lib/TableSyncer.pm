@@ -529,8 +529,8 @@ sub lock_and_wait {
                # Always use the misc_dbh dbh to check the master's position
                # because the main dbh might be in use due to executing
                # $src_sth.
-               $wait = $ms->wait_for_master(
-                  master_status => $ms->get_master_status($src->{misc_dbh}),
+               $wait = $ms->wait_for_source(
+                  source_status => $ms->get_source_status($src->{misc_dbh}),
                   slave_dbh     => $dst->{dbh},
                   timeout       => $timeout,
                );

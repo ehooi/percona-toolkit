@@ -19,7 +19,7 @@ use Sandbox;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 my $q = new Quoter;
 
@@ -213,7 +213,7 @@ SKIP: {
    }
 };
 
-my $utf8_dbh = $sb->get_dbh_for('master');
+my $utf8_dbh = $sb->get_dbh_for('source');
 $utf8_dbh->{mysql_enable_utf8} = 1;
 $utf8_dbh->do("SET NAMES 'utf8'");
 SKIP: {

@@ -34,7 +34,7 @@ $Data::Dumper::Quotekeys = 0;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 if ( !$dbh ) {
    plan skip_all => 'Cannot connect to sandbox master';
@@ -69,7 +69,7 @@ sub make_nibble_iter {
 
 
    if (my $file = $args{sql_file}) {
-      $sb->load_file('master', "$in/$file");
+      $sb->load_file('source', "$in/$file");
    }
 
    @ARGV = $args{argv} ? @{$args{argv}} : ();
@@ -622,7 +622,7 @@ is_deeply(
 # ############################################################################
 # Avoid infinite loops.
 # ############################################################################
-$sb->load_file('master', "$in/bad_tables.sql");
+$sb->load_file('source', "$in/bad_tables.sql");
 $dbh->do('analyze table bad_tables.inv');
 $ni = make_nibble_iter(
    db   => 'bad_tables',
@@ -855,7 +855,7 @@ is(
 # https://bugs.launchpad.net/percona-toolkit/+bug/995274
 # Index case-sensitivity.
 # #############################################################################
-$sb->load_file('master', "t/pt-table-checksum/samples/undef-arrayref-bug-995274.sql");
+$sb->load_file('source', "t/pt-table-checksum/samples/undef-arrayref-bug-995274.sql");
 
 eval {
    $ni = make_nibble_iter(

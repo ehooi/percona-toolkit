@@ -31,7 +31,7 @@ Transformers->import(qw(make_checksum));
 my $qr  = new QueryRewriter();
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 my $iu = new IndexUsage();
 
