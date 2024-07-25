@@ -130,6 +130,13 @@ sub get_rules {
       },
    },
    {
+      id   => 'init_replica',
+      code => sub {
+         my ( %args ) = @_;
+         return $args{variables}->{init_replica} ? 1 : 0;
+      },
+   },
+   {
       id   => 'innodb_additional_mem_pool_size',
       code => sub {
          my ( %args ) = @_;
@@ -376,11 +383,26 @@ sub get_rules {
       },
    },
    {
+      id   => 'replica_net_timeout',
+      code => sub {
+         my ( %args ) = @_;
+         return _var_gt($args{variables}->{replica_net_timeout}, 60);
+      },
+   },
+   {
       id   => 'slave_skip_errors',
       code => sub {
          my ( %args ) = @_;
          return $args{variables}->{slave_skip_errors}
              && $args{variables}->{slave_skip_errors} ne 'OFF' ? 1 : 0;
+      },
+   },
+   {
+      id   => 'replica_skip_errors',
+      code => sub {
+         my ( %args ) = @_;
+         return $args{variables}->{replica_skip_errors}
+             && $args{variables}->{replica_skip_errors} ne 'OFF' ? 1 : 0;
       },
    },
    {

@@ -5609,6 +5609,12 @@ severity: note
 
 The init_slave option is enabled on this server.
 
+=item init_replica
+
+severity: note
+
+The init_replica option is enabled on this server.
+
 =item innodb_additional_mem_pool_size
 
 severity: warn
@@ -5862,6 +5868,16 @@ should probably be set to 60 seconds or less.  It is also a good idea to
 use pt-heartbeat to ensure that the connection does not appear to time out
 when the master is simply idle.
 
+=item replica_net_timeout
+
+severity: warn
+
+This variable is set too high.  This is too long to wait before
+noticing that the connection to the source has failed and retrying.  This
+should probably be set to 60 seconds or less.  It is also a good idea to
+use pt-heartbeat to ensure that the connection does not appear to time out
+when the source is simply idle.
+
 =item slave_skip_errors
 
 severity: crit
@@ -5869,6 +5885,15 @@ severity: crit
 You should not set this option.  If replication is having errors,
 you need to find and resolve the cause of that; it is likely that your
 slave's data is different from the master.  You can find out with
+pt-table-checksum.
+
+=item replica_skip_errors
+
+severity: crit
+
+You should not set this option.  If replication is having errors,
+you need to find and resolve the cause of that; it is likely that your
+replica's data is different from the source.  You can find out with
 pt-table-checksum.
 
 =item sort_buffer_size-1

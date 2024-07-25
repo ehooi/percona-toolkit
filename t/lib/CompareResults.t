@@ -655,7 +655,7 @@ EOF
    $dbh1->do('SET SQL_LOG_BIN=0');
    $dbh1->do('insert into test.t3 values (2.0),(3.0)');
    $dbh1->do('SET SQL_LOG_BIN=1');
-   $sb->wait_for_slaves();
+   $sb->wait_for_replicas();
 
    my $left_n_rows = $dbh1->selectcol_arrayref('select count(*) from test.t3')->[0];
    my $right_n_rows = $dbh2->selectcol_arrayref('select count(*) from test.t3')->[0];

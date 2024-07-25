@@ -116,8 +116,10 @@ collect_mysql_plugins () {
    $CMD_MYSQL $EXT_ARGV -ss -e 'SHOW PLUGINS' 2>/dev/null
 }
 
-collect_mysql_slave_status () {
-   $CMD_MYSQL $EXT_ARGV -ssE -e 'SHOW SLAVE STATUS' 2>/dev/null
+collect_mysql_replica_status () {
+   local replica_name="$1"
+
+   $CMD_MYSQL $EXT_ARGV -ssE -e "SHOW ${replica_name} STATUS" 2>/dev/null
 }
 
 collect_mysql_innodb_status () {
@@ -146,8 +148,15 @@ collect_mysql_roles () {
    $CMD_MYSQL $EXT_ARGV -ss -e "$QUERY" 2>/dev/null
 }
 
-collect_mysql_show_slave_hosts () {
-   $CMD_MYSQL $EXT_ARGV -ssE -e 'SHOW SLAVE HOSTS' 2>/dev/null
+collect_mysql_show_replica_hosts () {
+   local version="$1"
+
+   local replicas='replicas'
+   if [ "$version" '<' "8.1" ]; then
+      replicas='slave hosts'
+   fi
+
+   $CMD_MYSQL $EXT_ARGV -ssE -e "SHOW ${replicas}" 2>/dev/null
 }
 
 collect_source_logs_status () {
@@ -299,7 +308,6 @@ collect_mysql_info () {
    collect_mysql_status        > "$dir/mysql-status"
    collect_mysql_databases     > "$dir/mysql-databases"
    collect_mysql_plugins       > "$dir/mysql-plugins"
-   collect_mysql_slave_status  > "$dir/mysql-slave"
    collect_mysql_innodb_status > "$dir/innodb-status"
    collect_mysql_ndb_status    > "$dir/ndb-status"
    collect_mysql_processlist   > "$dir/mysql-processlist"
@@ -307,11 +315,19 @@ collect_mysql_info () {
    collect_mysql_roles         > "$dir/mysql-roles"
    collect_keyring_plugins     > "$dir/keyring-plugins"
 
+   local mysql_version="$(get_var version "$dir/mysql-variables")"
+
+   local replicas='replicas'
+   local replica_name='replica'
+   if [ "$mysql_version" '<' "8.1" ]; then
+      replicas='slave-hosts'
+      replica_name='slave'
+   fi
+
+   collect_mysql_replica_status $replica_name > "$dir/mysql-${replica_name}"
    collect_mysqld_instances   "$dir/mysql-variables"  > "$dir/mysqld-instances"
    collect_mysqld_executables "$dir/mysqld-instances" > "$dir/mysqld-executables"
-   collect_mysql_show_slave_hosts  "$dir/mysql-slave-hosts" > "$dir/mysql-slave-hosts"
-
-   local mysql_version="$(get_var version "$dir/mysql-variables")"
+   collect_mysql_show_replica_hosts "$mysql_version" > "$dir/mysql-${replicas}"
 
    local binlog="$(get_var log_bin "$dir/mysql-variables")"
    if [ "${binlog}" ]; then

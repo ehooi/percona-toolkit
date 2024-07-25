@@ -171,7 +171,7 @@ sub load_file {
    if ( $? >> 8 ) {
       die "Failed to execute $file on $server: $out";
    }
-   $self->wait_for_slaves() unless $args{no_wait};
+   $self->wait_for_replicas() unless $args{no_wait};
 }
 
 sub _use_for {
@@ -211,7 +211,7 @@ sub wipe_clean {
       $dbh->do("DROP DATABASE IF EXISTS `$db`");
    }
 
-   $self->wait_for_slaves();
+   $self->wait_for_replicas();
 
    $self->clear_genlogs();
    return;
@@ -229,18 +229,18 @@ sub source_is_ok {
 }
 
 # Returns a string if there is a problem with the replica.
-sub slave_is_ok {
-   my ($self, $slave, $source, $ro) = @_;
-   return if $self->is_cluster_node($slave);
-   PTDEBUG && _d('Checking if replica', $slave, $port_for{$slave},
+sub replica_is_ok {
+   my ($self, $replica, $source, $ro) = @_;
+   return if $self->is_cluster_node($replica);
+   PTDEBUG && _d('Checking if replica', $replica, $port_for{$replica},
       'to', $source, $port_for{$source}, 'is ok');
 
-   my $slave_dbh = $self->get_dbh_for($slave);
-   if ( !$slave_dbh ) {
-      return  "Sandbox $slave " . $port_for{$slave} . " is down.";
+   my $replica_dbh = $self->get_dbh_for($replica);
+   if ( !$replica_dbh ) {
+      return  "Sandbox $replica " . $port_for{$replica} . " is down.";
    }
 
-   my $vp = VersionParser->new($slave_dbh);
+   my $vp = VersionParser->new($replica_dbh);
    my $replica_name = 'replica';
    my $source_name = 'source';
    if ( $vp->cmp('8.1') < 0 || $vp->flavor() =~ m/maria/i ) {
@@ -248,31 +248,31 @@ sub slave_is_ok {
       $source_name = 'master';
    }
    my $source_port = $port_for{$source};
-   my $status = $slave_dbh->selectall_arrayref(
+   my $status = $replica_dbh->selectall_arrayref(
       "SHOW ${replica_name} STATUS", { Slice => {} });
    if ( !$status || !@$status ) {
-      return "Sandbox $slave " . $port_for{$slave} . " is not a replica.";
+      return "Sandbox $replica " . $port_for{$replica} . " is not a replica.";
    }
 
    if ( $status->[0]->{last_error} ) {
       warn Dumper($status);
-      return "Sandbox $slave " . $port_for{$slave} . " is broken: "
+      return "Sandbox $replica " . $port_for{$replica} . " is broken: "
          . $status->[0]->{last_error} . ".";
    }
 
    foreach my $thd ( "${replica_name}_io_running", "${replica_name}_sql_running" ) {
       if ( ($status->[0]->{$thd} || 'No') eq 'No' ) {
          warn Dumper($status);
-         return "Sandbox $slave " . $port_for{$slave} . " $thd thread "
+         return "Sandbox $replica " . $port_for{$replica} . " $thd thread "
             . "is not running.";
       }
    }
 
    if ( $ro ) {
-      my $row = $slave_dbh->selectrow_arrayref(
+      my $row = $replica_dbh->selectrow_arrayref(
          "SHOW VARIABLES LIKE 'read_only'");
       if ( !$row || $row->[1] ne 'ON' ) {
-         return "Sandbox $slave " . $port_for{$slave} . " is not read-only.";
+         return "Sandbox $replica " . $port_for{$replica} . " is not read-only.";
       }
    }
 
@@ -283,16 +283,16 @@ sub slave_is_ok {
       PTDEBUG && _d('Replica lag:', $status->[0]->{"seconds_behind_${source_name}"});
       sleep $sleep_t;
       $total_t += $sleep_t;
-      $status = $slave_dbh->selectall_arrayref(
+      $status = $replica_dbh->selectall_arrayref(
          "SHOW ${replica_name} STATUS", { Slice => {} });
       if ( $total_t == 5 ) {
-         Test::More::diag("Waiting for sandbox $slave " . $port_for{$slave}
+         Test::More::diag("Waiting for sandbox $replica " . $port_for{$replica}
             . " to catch up...");
       }
    }
 
-   PTDEBUG && _d('Slave', $slave, $port_for{$slave}, 'is ok');
-   $slave_dbh->disconnect();
+   PTDEBUG && _d('Replica', $replica, $port_for{$replica}, 'is ok');
+   $replica_dbh->disconnect();
    return;
 }
 
@@ -331,10 +331,10 @@ sub ok {
    my ($self) = @_;
    my @errors;
    # First, wait for all replicas to be caught up to their sources.
-   $self->wait_for_slaves();
+   $self->wait_for_replicas();
    push @errors, $self->source_is_ok('source');
-   push @errors, $self->slave_is_ok('replica1', 'source');
-   push @errors, $self->slave_is_ok('replica2', 'replica1', 1);
+   push @errors, $self->replica_is_ok('replica1', 'source');
+   push @errors, $self->replica_is_ok('replica2', 'replica1', 1);
    push @errors, $self->leftover_servers();
    foreach my $host ( qw(source replica1 replica2) ) {
       push @errors, $self->leftover_databases($host);
@@ -346,16 +346,16 @@ sub ok {
 }
 
 # Dings a heartbeat on the source, and waits until the replica catches up fully.
-sub wait_for_slaves {
+sub wait_for_replicas {
    my ($self, %args) = @_;
    my $source_dbh = $self->get_dbh_for($args{source} || 'source');
-   my $slave2_dbh = $self->get_dbh_for($args{replica}  || 'replica2');
+   my $replica2_dbh = $self->get_dbh_for($args{replica}  || 'replica2');
    my ($ping) = $source_dbh->selectrow_array("SELECT MD5(RAND())");
-   $source_dbh->do("UPDATE percona_test.sentinel SET ping='$ping' WHERE id=1 /* wait_for_slaves */");
+   $source_dbh->do("UPDATE percona_test.sentinel SET ping='$ping' WHERE id=1 /* wait_for_replicas */");
    PerconaTest::wait_until(
       sub {
-         my ($pong) = $slave2_dbh->selectrow_array(
-            "SELECT ping FROM percona_test.sentinel WHERE id=1 /* wait_for_slaves */");
+         my ($pong) = $replica2_dbh->selectrow_array(
+            "SELECT ping FROM percona_test.sentinel WHERE id=1 /* wait_for_replicas */");
          return $ping eq ($pong || '');
       }, undef, 300
    );
@@ -469,7 +469,7 @@ sub can_load_data {
     return ($output || '') =~ /1/;
 }
 
-sub set_as_slave {
+sub set_as_replica {
    my ($self, $server, $source_server, @extras) = @_;
    PTDEBUG && _d("Setting $server as replica of $source_server");
 

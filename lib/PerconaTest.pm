@@ -54,7 +54,7 @@ our @EXPORT      = qw(
    parse_file
    wait_until
    wait_for
-   wait_until_slave_running
+   wait_until_replica_running
    test_log_parser
    test_protocol_parser
    test_packet_parser
@@ -774,7 +774,7 @@ sub get_source_binlog_pos {
    return $ms->{position};
 }
 
-sub get_slave_pos_relative_to_source {
+sub get_replica_pos_relative_to_source {
    my ($dbh) = @_;
 
    my $vp = VersionParser->new($dbh);

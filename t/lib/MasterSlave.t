@@ -26,7 +26,7 @@ my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
 
 my $master_dbh = $sb->get_dbh_for('source');
-my $slave_dbh  = $sb->get_dbh_for('replica1');
+my $replica_dbh  = $sb->get_dbh_for('replica1');
 my $master_dsn = {
    h => '127.1',
    P => '12345',
@@ -45,7 +45,7 @@ my $ms = new MasterSlave(
 );
 
 # ############################################################################
-# get_slaves() wrapper around recurse_to_slaves()
+# get_replicas() wrapper around recurse_to_replicas()
 # ############################################################################
 
 SKIP: {
@@ -57,7 +57,7 @@ PXC_SKIP: {
       local @ARGV = ();
       $o->get_opts();
    
-      my $slaves = $ms->get_slaves(
+      my $slaves = $ms->get_replicas(
          dbh      => $master_dbh,
          dsn      => $master_dsn,
          make_cxn => sub {
@@ -87,14 +87,14 @@ PXC_SKIP: {
             source_id => 12345,
             source    => 'hosts',
          },
-         'get_slaves() from recurse_to_slaves() with a default --recursion-method'
+         'get_replicas() from recurse_to_replicas() with a default --recursion-method'
       );
 
       my ($id) = $slaves->[0]->dbh()->selectrow_array('SELECT @@SERVER_ID');
       is(
          $id,
          '12346',
-         'dbh created from get_slaves()'
+         'dbh created from get_replicas()'
       );
 
       # This doesn't actually work because the master and slave are both
@@ -105,7 +105,7 @@ PXC_SKIP: {
       local @ARGV = ('--recursion-method', 'processlist');
       $o->get_opts();
 
-      $slaves = $ms->get_slaves(
+      $slaves = $ms->get_replicas(
          dbh      => $master_dbh,
          dsn      => $master_dsn,
          make_cxn => sub {
@@ -122,7 +122,7 @@ PXC_SKIP: {
       is_deeply(
          $slaves,
          [],
-         "get_slaves() by processlist"
+         "get_replicas() by processlist"
       );
 
       # ##########################################################################
@@ -151,7 +151,7 @@ PXC_SKIP: {
       $o->get_opts();
       throws_ok(
          sub {
-            $slaves = $ms->get_slaves(
+            $slaves = $ms->get_replicas(
                dbh      => $ro_dbh,
                dsn      => $ro_dsn,
                make_cxn => sub {
@@ -171,7 +171,7 @@ PXC_SKIP: {
 
       @ARGV = ('--recursion-method', 'none');
       $o->get_opts();
-      $slaves = $ms->get_slaves(
+      $slaves = $ms->get_replicas(
          dbh      => $ro_dbh,
          dsn      => $ro_dsn,
          make_cxn => sub {
@@ -193,7 +193,7 @@ PXC_SKIP: {
       @ARGV = ('--recursion-method', 'none', '--recurse', '2');
       $o->get_opts();
       my $recursed = 0;
-      $ms->recurse_to_slaves(
+      $ms->recurse_to_replicas(
          {  dbh      => $ro_dbh,
             dsn      => $ro_dsn,
             callback => sub { $recursed++ },
@@ -201,7 +201,7 @@ PXC_SKIP: {
       is(
          $recursed,
          0,
-         "recurse_to_slaves() doesn't recurse if method=none"
+         "recurse_to_replicas() doesn't recurse if method=none"
       );
 
       $ro_dbh->disconnect();
@@ -245,7 +245,7 @@ diag(`$trunk/sandbox/start-sandbox replica 2902 2901`);
 # |      2903 | 127.0.0.1 | 2903 |                 0 |      2900 | 
 # |      2901 | 127.0.0.1 | 2901 |                 0 |      2900 | 
 # +-----------+-----------+------+-------------------+-----------+
-# This caused recurse_to_slaves() to report 2903, 2901, 2902.
+# This caused recurse_to_replicas() to report 2903, 2901, 2902.
 # Since the tests are senstive to the order of @slaves, they failed
 # because $slaves->[1] was no longer slave1 but slave0. Starting slave2
 # last fixes/works around this.
@@ -281,7 +281,7 @@ my $skip_callback = sub {
 @ARGV = ('--recurse', '2');
 $o->get_opts();
 
-$ms->recurse_to_slaves(
+$ms->recurse_to_replicas(
    {  dbh           => $dbh,
       dsn           => $dsn,
       callback      => $callback,
@@ -315,9 +315,9 @@ is_deeply(
 # +- 127.0.0.1:slave0
 # |  +- 127.0.0.1:slave1
 # +- 127.0.0.1:slave2
-is($ms->get_slave_status($slaves[0])->{source_port}, $port_for{source}, 'slave 1 port');
-is($ms->get_slave_status($slaves[1])->{source_port}, $port_for{replica0}, 'slave 2 port');
-is($ms->get_slave_status($slaves[2])->{source_port}, $port_for{source}, 'slave 3 port');
+is($ms->get_replica_status($slaves[0])->{source_port}, $port_for{source}, 'slave 1 port');
+is($ms->get_replica_status($slaves[1])->{source_port}, $port_for{replica0}, 'slave 2 port');
+is($ms->get_replica_status($slaves[2])->{source_port}, $port_for{source}, 'slave 3 port');
 
 ok($ms->is_source_of($slaves[0], $slaves[1]), 'slave 1 is slave of slave 0');
 eval {
@@ -327,10 +327,10 @@ like($EVAL_ERROR, qr/but the ${source_name}'s port/, 'slave 2 is not slave of sl
 eval {
    $ms->is_source_of($slaves[2], $slaves[1]);
 };
-like($EVAL_ERROR, qr/has no connected slaves/, 'slave 1 is not slave of slave 2');
+like($EVAL_ERROR, qr/has no connected replicas/, 'slave 1 is not slave of slave 2');
 
-map { $ms->stop_slave($_) } @slaves;
-map { $ms->start_slave($_) } @slaves;
+map { $ms->stop_replica($_) } @slaves;
+map { $ms->start_replica($_) } @slaves;
 
 # Give the slaves so time to restart
 sleep(5);
@@ -338,13 +338,13 @@ sleep(5);
 my $res;
 $res = $ms->wait_for_source(
    source_status => $ms->get_source_status($dbh),
-   slave_dbh     => $slaves[0],
+   replica_dbh     => $slaves[0],
    timeout       => 10,
 );
 
 ok($res->{result} >= 0, 'Wait was successful');
 
-$ms->stop_slave($slaves[0]);
+$ms->stop_replica($slaves[0]);
 $dbh->do('drop database if exists test');
 $dbh->do('create database test');
 $dbh->do('create table test.t(a int)');
@@ -354,18 +354,18 @@ diag(`(/tmp/$port_for{replica0}/use -e 'start ${replica_name}')&`);
 eval {
    $res = $ms->wait_for_source(
       source_status => $ms->get_source_status($dbh),
-      slave_dbh     => $slaves[0],
+      replica_dbh     => $slaves[0],
       timeout       => 1,
    );
 };
 ok($res->{result}, 'Waited for some events');
 
 # Clear any START SLAVE UNTIL conditions.
-map { $ms->stop_slave($_) } @slaves;
-map { $ms->start_slave($_) } @slaves;
+map { $ms->stop_replica($_) } @slaves;
+map { $ms->start_replica($_) } @slaves;
 sleep 1;
 
-$ms->stop_slave($slaves[0]);
+$ms->stop_replica($slaves[0]);
 $dbh->do('drop database if exists test'); # Any stmt will do
 eval {
    $res = $ms->catchup_to_source($slaves[0], $dbh, 10);
@@ -373,7 +373,7 @@ eval {
 diag $EVAL_ERROR if $EVAL_ERROR;
 ok(!$EVAL_ERROR, 'No eval error catching up');
 my $master_stat = $ms->get_source_status($dbh);
-my $slave_stat = $ms->get_slave_status($slaves[0]);
+my $slave_stat = $ms->get_replica_status($slaves[0]);
 is_deeply(
    $ms->repl_posn($master_stat),
    $ms->repl_posn($slave_stat),
@@ -404,12 +404,12 @@ ok(
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_io', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_io', check_known_ids=>0),
    "Non-rpl thd is not slave io thd"
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_sql', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_sql', check_known_ids=>0),
    "Non-rpl thd is not slave sql thd"
 );
 
@@ -430,12 +430,12 @@ ok(
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_io', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_io', check_known_ids=>0),
    'Binlog Dump is not a slave io thd'
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_sql', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_sql', check_known_ids=>0),
    'Binlog Dump is not a slave sql thd'
 );
 
@@ -456,12 +456,12 @@ ok(
 );
 
 ok(
-   $ms->is_replication_thread($query, type=>'slave_io', check_known_ids=>0),
+   $ms->is_replication_thread($query, type=>'replica_io', check_known_ids=>0),
    'Slave io thd is a slave io thd'
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_sql', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_sql', check_known_ids=>0),
    'Slave io thd is not a slave sql thd',
 );
 
@@ -482,12 +482,12 @@ ok(
 );
 
 ok(
-   !$ms->is_replication_thread($query, type=>'slave_io', check_known_ids=>0),
+   !$ms->is_replication_thread($query, type=>'replica_io', check_known_ids=>0),
    'Slave sql thd is not a slave io thd'
 );
 
 ok(
-   $ms->is_replication_thread($query, type=>'slave_sql', check_known_ids=>0),
+   $ms->is_replication_thread($query, type=>'replica_sql', check_known_ids=>0),
    'Slave sql thd is a slave sql thd',
 );
 
@@ -507,12 +507,12 @@ ok(
    'Slave thread in init state matches all (issue 1121)',
 );
 ok(
-   $ms->is_replication_thread($query, type=>'slave_io'),
-   'Slave thread in init state matches slave_io (issue 1121)',
+   $ms->is_replication_thread($query, type=>'replica_io'),
+   'Slave thread in init state matches replica_io (issue 1121)',
 );
 ok(
-   $ms->is_replication_thread($query, type=>'slave_sql'),
-   'Slave thread in init state matches slave_sql (issue 1121)',
+   $ms->is_replication_thread($query, type=>'replica_sql'),
+   'Slave thread in init state matches replica_sql (issue 1121)',
 );
 
 # Issue 1143: mk-kill Can Kill Slave's Replication Thread
@@ -533,12 +533,12 @@ ok(
    'Slave thread executing trigger matches all (issue 1143)',
 );
 ok(
-   $ms->is_replication_thread($query, type=>'slave_io'),
-   'Slave thread executing trigger matches slave_io (issue 1143)',
+   $ms->is_replication_thread($query, type=>'replica_io'),
+   'Slave thread executing trigger matches replica_io (issue 1143)',
 );
 ok(
-   $ms->is_replication_thread($query, type=>'slave_sql'),
-   'Slave thread executing trigger matches slave_sql (issue 1143)',
+   $ms->is_replication_thread($query, type=>'replica_sql'),
+   'Slave thread executing trigger matches replica_sql (issue 1143)',
 );
 
 throws_ok(
@@ -604,20 +604,20 @@ ok(
 # #############################################################################
 SKIP: {
    skip "Cannot connect to sandbox master", 3 unless $master_dbh;
-   skip "Cannot connect to sandbox slave", 3 unless $slave_dbh;
+   skip "Cannot connect to sandbox slave", 3 unless $replica_dbh;
 
 PXC_SKIP: {
       skip 'Not for PXC' if ( $sb->is_cluster_mode );
 
    is_deeply(
-      $ms->get_replication_filters(dbh=>$slave_dbh),
+      $ms->get_replication_filters(dbh=>$replica_dbh),
       {
       },
       "No replication filters"
    );
 
    $master_dbh->disconnect();
-   $slave_dbh->disconnect();
+   $replica_dbh->disconnect();
 
    diag(`/tmp/12346/stop >/dev/null 2>&1`);
    diag(`/tmp/12345/stop >/dev/null 2>&1`);
@@ -629,7 +629,7 @@ PXC_SKIP: {
    diag(`/tmp/12346/start >/dev/null 2>&1`);
    
    $master_dbh = $sb->get_dbh_for('source');
-   $slave_dbh  = $sb->get_dbh_for('replica1');
+   $replica_dbh  = $sb->get_dbh_for('replica1');
 
    is_deeply(
       $ms->get_replication_filters(dbh=>$master_dbh),
@@ -640,7 +640,7 @@ PXC_SKIP: {
    );
 
    is_deeply(
-      $ms->get_replication_filters(dbh=>$slave_dbh),
+      $ms->get_replication_filters(dbh=>$replica_dbh),
       {
          replicate_ignore_db => 'foo',
       },
@@ -656,29 +656,29 @@ PXC_SKIP: {
    diag(`/tmp/12347/use -e "STOP ${replica_name}; START ${replica_name};" >/dev/null`);
 
    $master_dbh = $sb->get_dbh_for('source');
-   $slave_dbh  = $sb->get_dbh_for('replica1');
+   $replica_dbh  = $sb->get_dbh_for('replica1');
 };
 
 is(
-   $ms->get_slave_lag($dbh),
+   $ms->get_replica_lag($dbh),
    undef,
-   "get_slave_lag() for master"
+   "get_replica_lag() for master"
 );
 
 ok(
-   defined $ms->get_slave_lag($slaves[1]),
-   "get_slave_lag() for slave"
+   defined $ms->get_replica_lag($slaves[1]),
+   "get_replica_lag() for slave"
 );
 
 # ############################################################################
-# get_slaves() and DSN table
+# get_replicas() and DSN table
 # ############################################################################
 $sb->load_file('source', "t/lib/samples/MasterSlave/dsn_table.sql");
 
 @ARGV = ('--recursion-method', 'dsn=F=/tmp/12345/my.sandbox.cnf,D=dsn_t,t=dsns');
 $o->get_opts();
 
-my $slaves = $ms->get_slaves(
+my $slaves = $ms->get_replicas(
    OptionParser => $o,
    DSNParser    => $dp,
    Quoter       => $q,
@@ -706,7 +706,7 @@ is_deeply(
       u => 'msandbox',
       mysql_ssl => undef,
    },
-   'get_slaves() from DSN table'
+   'get_replicas() from DSN table'
 );
 
 my ($id) = $slaves->[0]->dbh()->selectrow_array('SELECT @@SERVER_ID');
@@ -788,7 +788,7 @@ SKIP: {
                                                              
    my $chan_slaves;
    eval {
-       $chan_slaves = $ms->get_slaves(
+       $chan_slaves = $ms->get_replicas(
           dbh      => $master1_dbh,
           dsn      => $master1_dsn,
           make_cxn => sub {
@@ -808,7 +808,7 @@ SKIP: {
    #};
    my $css;
    eval {
-       $css = $ms->get_slave_status($slave1_dbh);
+       $css = $ms->get_replica_status($slave1_dbh);
    };
    #local $SIG{__WARN__} = undef;
    is (
@@ -819,15 +819,15 @@ SKIP: {
 
    like (
        $EVAL_ERROR,
-       qr/This server returned more than one row for SHOW SLAVE STATUS/,
-       'Got warning message if we cannot determine slave in a multi source config without --channel param',
+       qr/This server returned more than one row for SHOW (REPLICA|SLAVE) STATUS/,
+       'Got warning message if we cannot determine replica in a multi source config without --channel param',
    );
 
    my $wfm;
    eval {
        $wfm = $ms->wait_for_source(
           source_status => $ms->get_source_status($dbh),
-          slave_dbh     => $slave1_dbh,
+          replica_dbh     => $slave1_dbh,
           timeout       => 1,
        );
    };
@@ -845,7 +845,7 @@ SKIP: {
    $slave1_dbh->do("STOP ${replica_name} for channel 'sourcechan2'");
 
    eval {
-       $css = $ms->get_slave_status($slave1_dbh);
+       $css = $ms->get_replica_status($slave1_dbh);
    };
    is (
        $css,
@@ -857,7 +857,7 @@ SKIP: {
 
    # Now try specifying a channel name 
    $ms->{channel} = 'sourcechan1';
-   $css = $ms->get_slave_status($slave1_dbh);
+   $css = $ms->get_replica_status($slave1_dbh);
    is (
        $css->{channel_name},
        'sourcechan1',
@@ -866,7 +866,7 @@ SKIP: {
 
    $wfm = $ms->wait_for_source(
       source_status => $ms->get_source_status($dbh),
-      slave_dbh     => $slave1_dbh,
+      replica_dbh     => $slave1_dbh,
       timeout       => 1,
    );
    is(
@@ -893,7 +893,7 @@ my $connected_slaves = [
   },
 ];
 
-my @g = $ms->_process_slaves_list ($dp, $dsn, $connected_slaves);
+my @g = $ms->_process_replicas_list ($dp, $dsn, $connected_slaves);
 is (
     scalar @g,
     1,

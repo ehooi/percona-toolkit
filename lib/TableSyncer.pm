@@ -255,12 +255,12 @@ sub sync_table {
             $dst_sql .= ' FOR UPDATE';
          }
          elsif ( $args{changing_src} ) {
-            # Making changes on source (src) which replicate to slave (dst).
+            # Making changes on source (src) which replicate to replica (dst).
             $src_sql .= ' FOR UPDATE';
             $dst_sql .= ' LOCK IN SHARE MODE';
          }
          else {
-            # Making changes on slave (dst).
+            # Making changes on replica (dst).
             $src_sql .= ' LOCK IN SHARE MODE';
             $dst_sql .= ' FOR UPDATE';
          }
@@ -449,7 +449,7 @@ sub unlock {
 #   3 => global
 # This function might actually execute the $src_sth.  If we're using
 # transactions instead of table locks, the $src_sth has to be executed before
-# the SOURCE_POS_WAIT() on the slave.  The return value is whether the
+# the SOURCE_POS_WAIT() on the replica.  The return value is whether the
 # $src_sth was executed.
 sub lock_and_wait {
    my ( $self, %args ) = @_;
@@ -478,7 +478,7 @@ sub lock_and_wait {
    }
 
    # User wants us to lock for consistency.  But lock only on source initially;
-   # might have to wait for the slave to catch up before locking on the dest.
+   # might have to wait for the replica to catch up before locking on the dest.
    if ( $args{lock} == 3 ) {
       my $sql = 'FLUSH TABLES WITH READ LOCK';
       PTDEBUG && _d($src->{dbh}, $sql);
@@ -531,32 +531,32 @@ sub lock_and_wait {
                # $src_sth.
                $wait = $ms->wait_for_source(
                   source_status => $ms->get_source_status($src->{misc_dbh}),
-                  slave_dbh     => $dst->{dbh},
+                  replica_dbh     => $dst->{dbh},
                   timeout       => $timeout,
                );
                if ( defined $wait->{result} && $wait->{result} != -1 ) {
-                  return;  # slave caught up
+                  return;  # replica caught up
                }
                die; # call fail
             },
             fail => sub {
                my (%args) = @_;
                if ( !defined $wait->{result} ) {
-                  # Slave was stopped either before or during the wait.
+                  # Replica was stopped either before or during the wait.
                   # Wait a few seconds and try again in hopes that the
-                  # slave is restarted.  This is the only case for which
-                  # we wait and retry because the slave might have been
+                  # replica is restarted.  This is the only case for which
+                  # we wait and retry because the replica might have been
                   # stopped temporarily and/or unbeknownst to the user,
-                  # so they'll be happy if we wait for slave to be restarted
+                  # so they'll be happy if we wait for replica to be restarted
                   # and then continue syncing.
                   my $msg;
                   if ( $wait->{waited}  ) {
-                     $msg = "The slave was stopped while waiting with "
+                     $msg = "The replica was stopped while waiting with "
                           . "SOURCE_POS_WAIT().";
                   }
                   else {
                      $msg = "SOURCE_POS_WAIT() returned NULL.  Verify that "
-                          . "the slave is running.";
+                          . "the replica is running.";
                   }
                   if ( $tries - $args{tryno} ) {
                      $msg .= "  Sleeping $sleep seconds then retrying "
@@ -572,9 +572,9 @@ sub lock_and_wait {
                }
             },
             final_fail => sub {
-               die "Slave did not catch up to its source after $tries attempts "
+               die "Replica did not catch up to its source after $tries attempts "
                   . "of waiting $timeout seconds with SOURCE_POS_WAIT.  "
-                  . "Check that the slave is running, increase the --wait "
+                  . "Check that the replica is running, increase the --wait "
                   . "time, or disable this feature by specifying --wait 0.";
             },
          );  # retry MasterSlave::wait_for_source()

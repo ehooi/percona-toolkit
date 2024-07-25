@@ -5227,20 +5227,20 @@ sub get_slaves {
       $self->recurse_to_slaves(
          {  dbh            => $dbh,
             dsn            => $dsn,
-            slave_user     => $o->got('slave-user') ? $o->get('slave-user') : '',
-            slave_password => $o->got('slave-password') ? $o->get('slave-password') : '',
+            slave_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
+            slave_password => $o->got('replica-password') ? $o->get('replica-password') : '',
             slaves         => $args{slaves},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found slave:', $dp->as_string($dsn));
                my $slave_dsn = $dsn;
-               if ($o->got('slave-user')) {
-                  $slave_dsn->{u} = $o->get('slave-user');
-                  PTDEBUG && _d("Using slave user ".$o->get('slave-user')." on ".$slave_dsn->{h}.":".$slave_dsn->{P});
+               if ($o->got('replica-user')) {
+                  $slave_dsn->{u} = $o->get('replica-user');
+                  PTDEBUG && _d("Using slave user ".$o->get('replica-user')." on ".$slave_dsn->{h}.":".$slave_dsn->{P});
                }
-               if ($o->got('slave-password')) {
-                  $slave_dsn->{p} = $o->get('slave-password');
+               if ($o->got('replica-password')) {
+                  $slave_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Slave password set");
                }
                push @$slaves, $make_cxn->(dsn => $slave_dsn, dbh => $dbh, parent => $parent);
@@ -13847,7 +13847,7 @@ type: DSN; repeatable: yes
 DSN to skip when checking slave lag. It can be used multiple times.
 Example: --skip-check-slave-lag h=127.1,P=12345 --skip-check-slave-lag h=127.1,P=12346
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
@@ -13855,12 +13855,12 @@ Sets the user to be used to connect to the slaves.
 This parameter allows you to have a different user with less privileges on the
 slaves but that user must exist on all slaves.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
 Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
+It can be used with --replica-user and the password for the user must be the same
 on all slaves.
 
 =item --set-vars
