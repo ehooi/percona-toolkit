@@ -19,7 +19,7 @@
 # ###########################################################################
 {
 # Package: ReplicaLagWaiter
-# ReplicaLagWaiter helps limit slave lag when working on the master.
+# ReplicaLagWaiter helps limit slave lag when working on the source.
 package ReplicaLagWaiter;
 
 use strict;
@@ -56,7 +56,7 @@ sub new {
 }
 
 # Sub: wait
-#   Wait for Seconds_Behind_Master on all slaves to become < max.
+#   Wait for Seconds_Behind_Source on all slaves to become < max.
 #
 # Optional Arguments:
 #   Progress - <Progress> object to report waiting

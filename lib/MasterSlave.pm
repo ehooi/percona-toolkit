@@ -456,7 +456,7 @@ sub is_source_of {
       # compare and make sure the source and slave are reasonably close to each
       # other.  Note that this is one of the few places where I check the I/O
       # thread positions instead of the SQL thread positions!
-      # Master_Log_File/Read_Master_Log_Pos is the I/O thread's position on the
+      # Source_Log_File/Read_Source_Log_Pos is the I/O thread's position on the
       # source.
       my ( $source_log_name, $source_log_num )
          = $source_status->{file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
@@ -474,7 +474,7 @@ sub is_source_of {
 }
 
 # Figures out how to connect to the source, by examining SHOW SLAVE STATUS.  But
-# does NOT use the value from Master_User for the username, because typically we
+# does NOT use the value from Source_User for the username, because typically we
 # want to perform operations as the username that was specified (usually to the
 # program's --user option, or in a DSN), rather than as the replication user,
 # which is often restricted.
@@ -558,7 +558,7 @@ sub get_slave_status {
   }
 }
 
-# Gets SHOW MASTER STATUS, with column names all lowercased, as a hashref.
+# Gets SHOW SOURCE STATUS, with column names all lowercased, as a hashref.
 sub get_source_status {
    my ( $self, $dbh ) = @_;
 
@@ -575,7 +575,7 @@ sub get_source_status {
 
    my $sth;
    if ( $self->{sths}->{$dbh} && $dbh && $self->{sths}->{$dbh} == $dbh ) {
-      $sth = $self->{sths}->{$dbh}->{MASTER_STATUS}
+      $sth = $self->{sths}->{$dbh}->{SOURCE_STATUS}
          ||= $dbh->prepare("SHOW ${source_name} STATUS");
    }
    else {
@@ -597,7 +597,7 @@ sub get_source_status {
 }
 
 # Sub: wait_for_source
-#   Execute MASTER_POS_WAIT() to make slave wait for its source.
+#   Execute SOURCE_POS_WAIT() to make slave wait for its source.
 #
 # Parameters:
 #   %args - Arguments
@@ -613,7 +613,7 @@ sub get_source_status {
 #   Hashref with result of waiting, like:
 #   (start code)
 #   {
-#     result => the result returned by MASTER_POS_WAIT: -1, undef, 0+
+#     result => the result returned by SOURCE_POS_WAIT: -1, undef, 0+
 #     waited => the number of seconds waited, might be zero
 #   }
 #   (end code)
@@ -651,7 +651,7 @@ sub wait_for_source {
       my $start = time;
       ($result) = $slave_dbh->selectrow_array($sql);
 
-      # If MASTER_POS_WAIT() returned NULL and we waited at least 1s
+      # If SOURCE_POS_WAIT() returned NULL and we waited at least 1s
       # and the time we waited is less than the timeout then this is
       # a strong indication that the slave was stopped while we were
       # waiting.
@@ -695,7 +695,7 @@ sub start_slave {
       $replica_name = 'slave';
    }
    if ( $pos ) {
-      # Just like with CHANGE MASTER TO, you can't quote the position.
+      # Just like with CHANGE REPLICATION SOURCE TO, you can't quote the position.
       my $sql = "START ${replica_name} UNTIL ${source_name}_LOG_FILE='$pos->{file}', "
               . "${source_name}_LOG_POS=$pos->{position}";
       PTDEBUG && _d($dbh, $sql);
@@ -720,7 +720,7 @@ sub catchup_to_source {
    my $slave_pos     = $self->repl_posn($slave_status);
    my $source_status = $self->get_source_status($source);
    my $source_pos    = $self->repl_posn($source_status);
-   PTDEBUG && _d('Master position:', $self->pos_to_string($source_pos),
+   PTDEBUG && _d('Source position:', $self->pos_to_string($source_pos),
       'Slave position:', $self->pos_to_string($slave_pos));
 
    my $result;
@@ -729,7 +729,7 @@ sub catchup_to_source {
       $self->start_slave($slave, $source_pos);
 
       # The slave may catch up instantly and stop, in which case
-      # MASTER_POS_WAIT will return NULL and $result->{result} will be undef.
+      # SOURCE_POS_WAIT will return NULL and $result->{result} will be undef.
       # We must catch this; if it returns NULL, then we check that
       # its position is as desired.
       # TODO: what if source_pos_wait times out and $result == -1? retry?
@@ -745,12 +745,12 @@ sub catchup_to_source {
       if ( !defined $result->{result} ) {
          $slave_status = $self->get_slave_status($slave);
          if ( !$self->slave_is_running($slave_status) ) {
-            PTDEBUG && _d('Master position:',
+            PTDEBUG && _d('Source position:',
                $self->pos_to_string($source_pos),
                'Slave position:', $self->pos_to_string($slave_pos));
             $slave_pos = $self->repl_posn($slave_status);
             if ( $self->pos_cmp($slave_pos, $source_pos) != 0 ) {
-               die "MASTER_POS_WAIT() returned NULL but slave has not "
+               die "SOURCE_POS_WAIT() returned NULL but slave has not "
                   . "caught up to source";
             }
             PTDEBUG && _d('Slave is caught up to source and stopped');
@@ -815,12 +815,12 @@ sub has_slave_updates {
    return $value && $value =~ m/^(1|ON)$/;
 }
 
-# Extracts the replication position out of either SHOW MASTER STATUS or SHOW
+# Extracts the replication position out of either SHOW REPLICATION SOURCE STATUS or SHOW
 # SLAVE STATUS, and returns it as a hashref { file, position }
 sub repl_posn {
    my ( $self, $status ) = @_;
    if ( exists $status->{file} && exists $status->{position} ) {
-      # It's the output of SHOW MASTER STATUS
+      # It's the output of SHOW BINARY LOG STATUS
       return {
          file     => $status->{file},
          position => $status->{position},
@@ -878,9 +878,9 @@ sub pos_cmp {
 sub short_host {
    my ( $self, $dsn ) = @_;
    my ($host, $port);
-   if ( $dsn->{master_host} ) {
-      $host = $dsn->{master_host};
-      $port = $dsn->{master_port};
+   if ( $dsn->{source_host} ) {
+      $host = $dsn->{source_host};
+      $port = $dsn->{source_port};
    }
    else {
       $host = $dsn->{h};

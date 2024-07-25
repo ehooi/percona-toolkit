@@ -702,18 +702,25 @@ sub normalize_checksum_results {
    return $normal_output;
 }
 
-sub get_master_binlog_pos {
+sub get_source_binlog_pos {
    my ($dbh) = @_;
-   my $sql = "SHOW MASTER STATUS";
+
+   my $vp = VersionParser->new($dbh);
+   my $source_name = 'source';
+   if ( $vp->cmp('8.1') < 0 || $vp->flavor() =~ m/maria/i ) {
+      $source_name = 'master';
+   }
+
+   my $sql = "SHOW ${source_name} STATUS";
    my $ms  = $dbh->selectrow_hashref($sql);
    return $ms->{position};
 }
 
-sub get_slave_pos_relative_to_master {
+sub get_slave_pos_relative_to_source {
    my ($dbh) = @_;
    my $sql = "SHOW SLAVE STATUS";
    my $ss  = $dbh->selectrow_hashref($sql);
-   return $ss->{exec_master_log_pos};
+   return $ss->{exec_source_log_pos};
 }
 
 # Like output(), but forks a process to execute the coderef.

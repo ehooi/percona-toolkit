@@ -218,22 +218,22 @@ sub wipe_clean {
 }
 
 # Returns a string if there is a problem with the source.
-sub master_is_ok {
-   my ($self, $master) = @_;
-   my $master_dbh = $self->get_dbh_for($master);
-   if ( !$master_dbh ) {
-      return "Sandbox $master " . $port_for{$master} . " is down.";
+sub source_is_ok {
+   my ($self, $source) = @_;
+   my $source_dbh = $self->get_dbh_for($source);
+   if ( !$source_dbh ) {
+      return "Sandbox $source " . $port_for{$source} . " is down.";
    }
-   $master_dbh->disconnect();
+   $source_dbh->disconnect();
    return;
 }
 
 # Returns a string if there is a problem with the replica.
 sub slave_is_ok {
-   my ($self, $slave, $master, $ro) = @_;
+   my ($self, $slave, $source, $ro) = @_;
    return if $self->is_cluster_node($slave);
    PTDEBUG && _d('Checking if replica', $slave, $port_for{$slave},
-      'to', $master, $port_for{$master}, 'is ok');
+      'to', $source, $port_for{$source}, 'is ok');
 
    my $slave_dbh = $self->get_dbh_for($slave);
    if ( !$slave_dbh ) {
@@ -242,10 +242,12 @@ sub slave_is_ok {
 
    my $vp = VersionParser->new($slave_dbh);
    my $replica_name = 'replica';
+   my $source_name = 'source';
    if ( $vp->cmp('8.1') < 0 || $vp->flavor() =~ m/maria/i ) {
       $replica_name = 'slave';
+      $source_name = 'master';
    }
-   my $master_port = $port_for{$master};
+   my $source_port = $port_for{$source};
    my $status = $slave_dbh->selectall_arrayref(
       "SHOW ${replica_name} STATUS", { Slice => {} });
    if ( !$status || !@$status ) {
@@ -276,9 +278,9 @@ sub slave_is_ok {
 
    my $sleep_t = 0.25;
    my $total_t = 0;
-   while ( defined $status->[0]->{seconds_behind_master}
-           &&  $status->[0]->{seconds_behind_master} > 0 ) {
-      PTDEBUG && _d('Replica lag:', $status->[0]->{seconds_behind_master});
+   while ( defined $status->[0]->{"seconds_behind_${source_name}"}
+           &&  $status->[0]->{"seconds_behind_${source_name}"} > 0 ) {
+      PTDEBUG && _d('Replica lag:', $status->[0]->{"seconds_behind_${source_name}"});
       sleep $sleep_t;
       $total_t += $sleep_t;
       $status = $slave_dbh->selectall_arrayref(
@@ -330,7 +332,7 @@ sub ok {
    my @errors;
    # First, wait for all replicas to be caught up to their sources.
    $self->wait_for_slaves();
-   push @errors, $self->master_is_ok('source');
+   push @errors, $self->source_is_ok('source');
    push @errors, $self->slave_is_ok('replica1', 'source');
    push @errors, $self->slave_is_ok('replica2', 'replica1', 1);
    push @errors, $self->leftover_servers();
@@ -346,10 +348,10 @@ sub ok {
 # Dings a heartbeat on the source, and waits until the replica catches up fully.
 sub wait_for_slaves {
    my ($self, %args) = @_;
-   my $master_dbh = $self->get_dbh_for($args{source} || 'source');
+   my $source_dbh = $self->get_dbh_for($args{source} || 'source');
    my $slave2_dbh = $self->get_dbh_for($args{replica}  || 'replica2');
-   my ($ping) = $master_dbh->selectrow_array("SELECT MD5(RAND())");
-   $master_dbh->do("UPDATE percona_test.sentinel SET ping='$ping' WHERE id=1 /* wait_for_slaves */");
+   my ($ping) = $source_dbh->selectrow_array("SELECT MD5(RAND())");
+   $source_dbh->do("UPDATE percona_test.sentinel SET ping='$ping' WHERE id=1 /* wait_for_slaves */");
    PerconaTest::wait_until(
       sub {
          my ($pong) = $slave2_dbh->selectrow_array(
@@ -366,8 +368,8 @@ sub verify_test_data {
    my ($self, $host) = @_;
 
    # Get the known-good checksums from the source.
-   my $master = $self->get_dbh_for('source');
-   my $ref    = $self->{checksum_ref} || $master->selectall_hashref(
+   my $source = $self->get_dbh_for('source');
+   my $ref    = $self->{checksum_ref} || $source->selectall_hashref(
          'SELECT * FROM percona_test.checksums',
          'db_tbl');
    $self->{checksum_ref} = $ref unless $self->{checksum_ref};
@@ -379,11 +381,11 @@ sub verify_test_data {
                           grep { !/user$/ }
                           grep { !/proxies_priv$/ }
                           grep { !/global_grants$/ }
-                          @{$master->selectcol_arrayref('SHOW TABLES FROM mysql')};
+                          @{$source->selectcol_arrayref('SHOW TABLES FROM mysql')};
    my @tables_in_sakila = qw(actor address category city country customer
                              film film_actor film_category film_text inventory
                              language payment rental staff store);
-   $master->disconnect;
+   $source->disconnect;
 
    # Get the current checksums on the host.
    my $dbh = $self->get_dbh_for($host);
@@ -468,15 +470,31 @@ sub can_load_data {
 }
 
 sub set_as_slave {
-   my ($self, $server, $master_server, @extras) = @_;
-   PTDEBUG && _d("Setting $server as replica of $master_server");
-   my $master_port = $port_for{$master_server};
-   my $sql = join ", ", qq{change master to master_host='127.0.0.1'},
-                        qq{master_user='msandbox'},
-                        qq{master_password='msandbox'},
-                        qq{master_port=$master_port},
+   my ($self, $server, $source_server, @extras) = @_;
+   PTDEBUG && _d("Setting $server as replica of $source_server");
+
+   my $dbh = $self->get_dbh_for($server);
+   if ( !$dbh ) {
+      return  "Sandbox $server " . $port_for{$server} . " is down.";
+   }
+
+   my $vp = VersionParser->new($dbh);
+   my $replica_name = 'replica';
+   my $source_name = 'source';
+   my $replication_source_name = 'replication source';
+   if ( $vp->cmp('8.1') < 0 || $vp->flavor() =~ m/maria/i ) {
+      $replica_name = 'slave';
+      $source_name = 'master';
+      $replication_source_name = 'master';
+   }
+
+   my $source_port = $port_for{$source_server};
+   my $sql = join ", ", qq{change ${replication_source_name} to ${source_name}_host='127.0.0.1'},
+                        qq{${source_name}_user='msandbox'},
+                        qq{${source_name}_password='msandbox'},
+                        qq{${source_name}_port=$source_port},
                         @extras;
-   for my $sql_to_run ($sql, "start slave") {
+   for my $sql_to_run ($sql, "start ${replica_name}") {
       my $out = $self->use($server, qq{-e "$sql_to_run"});
       PTDEBUG && _d($out);
    }
@@ -502,9 +520,9 @@ sub start_sandbox {
    elsif ( $type eq 'replica' ) {
       die "I need a replica arg" unless $args{source};
       _check_server($args{source});
-      my $master_port = $port_for{$args{source}};
+      my $source_port = $port_for{$args{source}};
 
-      my $out = `$env $trunk/sandbox/start-sandbox $type $port $master_port`;
+      my $out = `$env $trunk/sandbox/start-sandbox $type $port $source_port`;
       die $out if $CHILD_ERROR;
    }
    elsif ( $type eq 'node' ) {

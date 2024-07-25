@@ -164,10 +164,10 @@ cmd_ok \
 
 if [ -n "$(get_var log_bin "$p/mysql-variables")" ]; then
    cmd_ok \
-      "test -e $p/mysql-master-logs" \
+      "test -e $p/mysql-binary-logs" \
       "If we have a binlog, a file with the master logs should exist"
    cmd_ok \
-      "test -e $p/mysql-master-status" \
+      "test -e $p/mysql-binary-log-status" \
       "And likewise for master status"
 else
    skip 1 2 "no binlog"

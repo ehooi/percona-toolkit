@@ -297,12 +297,12 @@ sub is_cluster_node {
 }
 
 # There's two reasons why there might be dupes:
-# If the "master" is a cluster node, then a DSN table might have been
+# If the "source" is a cluster node, then a DSN table might have been
 # used, and it may have all nodes' DSNs so the user can run the tool
-# on any node, in which case it has the "master" node, the DSN given
+# on any node, in which case it has the "source" node, the DSN given
 # on the command line.
 # On the other hand, maybe find_cluster_nodes worked, in which case
-# we definitely have a dupe for the master cxn, but we may also have a
+# we definitely have a dupe for the source cxn, but we may also have a
 # dupe for every other node if this was used in conjunction with a
 # DSN table.
 # So try to detect and remove those.

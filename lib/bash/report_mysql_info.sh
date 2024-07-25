@@ -200,7 +200,7 @@ get_mysql_uptime () {
    echo "${restart} (up ${uptime})"
 }
 
-# Summarizes the output of SHOW MASTER LOGS.
+# Summarizes the output of SHOW BINARY LOGS.
 summarize_binlogs () {
    local file="$1"
 
@@ -1144,13 +1144,13 @@ _semi_sync_stats_for () {
    name_val "${target} semisync status" "${semisync_status}"
    name_val "${target} trace level" "${semisync_trace}, ${trace_extra}"
 
-   if [ "${target}" = "master" ]; then
+   if [ "${target}" = "source" ] || [ "${target}" = "master" ]; then
       name_val "${target} timeout in milliseconds" \
                "$(get_var "rpl_semi_sync_${target}_timeout" "${file}")"
       name_val "${target} waits for slaves"        \
                "$(get_var "rpl_semi_sync_${target}_wait_no_slave" "${file}")"
 
-      _d "Prepend Rpl_semi_sync_master_ to the following"
+      _d "Prepend Rpl_semi_sync_${target}_ to the following"
       for v in                                              \
          clients net_avg_wait_time net_wait_time net_waits  \
          no_times no_tx timefunc_failures tx_avg_wait_time  \
@@ -1158,7 +1158,7 @@ _semi_sync_stats_for () {
          wait_sessions yes_tx;
       do
          name_val "${target} ${v}" \
-                  "$( get_var "Rpl_semi_sync_master_${v}" "${file}" )"
+                  "$( get_var "Rpl_semi_sync_${target}_${v}" "${file}" )"
       done
    fi
 }
@@ -1330,6 +1330,21 @@ report_mysql_summary () {
    local user="$(get_var "pt-summary-internal-user" "$dir/mysql-variables")"
    local port="$(get_var port "$dir/mysql-variables")"
    local now="$(get_var "pt-summary-internal-now" "$dir/mysql-variables")"
+   local mysql_version="$(get_var version "$dir/mysql-variables")"
+
+   local source_name='source'
+   local source_log='binary'
+   local source_status='binary log'
+   local source_logs_file="mysql-binary-logs"
+   local source_status_file="mysql-binary-log-status"
+   if [ "${mysql_version}" '<' "8.1" ]; then
+      source_name='master'
+      source_log='master'
+      source_status='master'
+      source_logs_file='mysql-master-logs'
+      source_status_file='mysql-master-status'
+   fi
+
    section "Report On Port ${port}"
    name_val User "${user}"
    name_val Time "${now} ($(get_mysql_timezone "$dir/mysql-variables"))"
@@ -1432,13 +1447,13 @@ report_mysql_summary () {
       name_val HitToInsertRatio "${hrat}"
    fi
 
-   local semisync_enabled_master="$(get_var "rpl_semi_sync_master_enabled" "$dir/mysql-variables")"
-   if [ -n "${semisync_enabled_master}" ]; then
+   local semisync_enabled_source="$(get_var "rpl_semi_sync_${source_name}_enabled" "$dir/mysql-variables")"
+   if [ -n "${semisync_enabled_source}" ]; then
       section "Semisynchronous Replication"
-      if [ "$semisync_enabled_master" = "OFF" -o "$semisync_enabled_master" = "0" -o -z "$semisync_enabled_master" ]; then
-         name_val "Master" "Disabled"
+      if [ "$semisync_enabled_source" = "OFF" -o "$semisync_enabled_source" = "0" -o -z "$semisync_enabled_source" ]; then
+         name_val "Source" "Disabled"
       else
-         _semi_sync_stats_for "master" "$dir/mysql-variables"
+         _semi_sync_stats_for "${source_name}" "$dir/mysql-variables"
       fi
       local semisync_enabled_slave="$(get_var rpl_semi_sync_slave_enabled "$dir/mysql-variables")"
       if    [ "$semisync_enabled_slave" = "OFF" -o "$semisync_enabled_slave" = "0" -o -z "$semisync_enabled_slave" ]; then
@@ -1610,15 +1625,15 @@ report_mysql_summary () {
    # ########################################################################
    section "Binary Logging"
 
-   if    [ -s "$dir/mysql-master-logs" ] \
-      || [ -s "$dir/mysql-master-status" ]; then
-      summarize_binlogs "$dir/mysql-master-logs"
+   if    [ -s "$dir/$source_logs_file" ] \
+      || [ -s "$dir/$source_status_file" ]; then
+      summarize_binlogs "$dir/$source_logs_file"
       local format="$(get_var binlog_format "$dir/mysql-variables")"
       name_val binlog_format "${format:-STATEMENT}"
       name_val expire_logs_days "$(get_var expire_logs_days "$dir/mysql-variables")"
       name_val sync_binlog "$(get_var sync_binlog "$dir/mysql-variables")"
       name_val server_id "$(get_var server_id "$dir/mysql-variables")"
-      format_binlog_filters "$dir/mysql-master-status"
+      format_binlog_filters "$dir/$source_status_file"
    fi
 
 # Replication: seconds behind, running, filters, skip_slave_start, skip_errors,

@@ -150,11 +150,19 @@ collect_mysql_show_slave_hosts () {
    $CMD_MYSQL $EXT_ARGV -ssE -e 'SHOW SLAVE HOSTS' 2>/dev/null
 }
 
-collect_master_logs_status () {
-   local master_logs_file="$1"
-   local master_status_file="$2"
-   $CMD_MYSQL $EXT_ARGV -ss -e 'SHOW MASTER LOGS' > "$master_logs_file" 2>/dev/null
-   $CMD_MYSQL $EXT_ARGV -ss -e 'SHOW MASTER STATUS' > "$master_status_file" 2>/dev/null
+collect_source_logs_status () {
+   local source_logs_file="$1"
+   local source_status_file="$2"
+   local version="$3"
+
+   local source_log='binary'
+   local source_status='binary log'
+   if [ "$version" '<' "8.1" ]; then
+      source_log = 'master'
+      source_status = 'master'
+   fi
+   $CMD_MYSQL $EXT_ARGV -ss -e "SHOW ${source_log} LOGS" > "$source_logs_file" 2>/dev/null
+   $CMD_MYSQL $EXT_ARGV -ss -e "SHOW ${source_status} STATUS" > "$source_status_file" 2>/dev/null
 }
 
 # Somewhat different from the others, this one joins the status we got earlier
@@ -303,10 +311,19 @@ collect_mysql_info () {
    collect_mysqld_executables "$dir/mysqld-instances" > "$dir/mysqld-executables"
    collect_mysql_show_slave_hosts  "$dir/mysql-slave-hosts" > "$dir/mysql-slave-hosts"
 
+   local mysql_version="$(get_var version "$dir/mysql-variables")"
+
    local binlog="$(get_var log_bin "$dir/mysql-variables")"
    if [ "${binlog}" ]; then
-      # "Got a binlog, going to get MASTER LOGS and MASTER STATUS"
-      collect_master_logs_status "$dir/mysql-master-logs" "$dir/mysql-master-status"
+      # "Got a binlog, going to get BINARY LOGS and BINARY LOG STATUS"
+      local source_logs_file="mysql-binary-logs"
+      local source_status_file="mysql-binary-log-status"
+
+      if [ "$mysql_version" '<' "8.1" ]; then
+         source_logs_file='mysql-master-logs'
+         source_status_file='mysql-master-status'
+      fi
+      collect_source_logs_status "$dir/$source_logs_file" "$dir/$source_status_file" ${mysql_version}
    fi
 
    local uptime="$(get_var Uptime "$dir/mysql-status")"
@@ -337,7 +354,6 @@ collect_mysql_info () {
 
    # encrypted tables and tablespaces
    if [ "${OPT_LIST_ENCRYPTED_TABLES}" = 'yes' ]; then
-      local mysql_version="$(get_var version "$dir/mysql-variables")"
       collect_encrypted_tables                       > "$dir/encrypted-tables"
       collect_encrypted_tablespaces ${mysql_version} > "$dir/encrypted-tablespaces"
    fi

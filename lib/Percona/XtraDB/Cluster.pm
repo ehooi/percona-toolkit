@@ -112,7 +112,7 @@ sub find_cluster_nodes {
          # If there wasn't a port, that means that this bug
          # https://bugs.launchpad.net/percona-toolkit/+bug/1082406
          # isn't fixed on this version of PXC. We tried using the
-         # master's port, but that didn't work. So try again, using
+         # source's port, but that didn't work. So try again, using
          # the default port.
          if ( !$port && $dsn->{P} != 3306 ) {
             $address .= ":3306";

@@ -1004,7 +1004,7 @@ my $output = '';
             },
          );
       },
-      qr/Slave did not catch up to its master after 2 attempts of waiting 60/,
+      qr/Slave did not catch up to its source after 2 attempts of waiting 60/,
       "Retries wait"
    );
 }
