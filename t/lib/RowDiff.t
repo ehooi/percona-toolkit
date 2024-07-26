@@ -16,6 +16,7 @@ use RowDiff;
 use MockSth;
 use Sandbox;
 use DSNParser;
+use VersionParser;
 use TableParser;
 use Quoter;
 use PerconaTest;

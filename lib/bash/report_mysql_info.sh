@@ -1217,11 +1217,11 @@ section_mysqld () {
 
 section_replica_hosts () {
    local replica_hosts_file="$1"
-   local replica_name="$2"
+   local replica_name=`echo "$2" | sed 's/[^ ]*/\u&/'`
 
    [ -e "$replica_hosts_file" ] || return
 
-   section "${replica_name^} Hosts"
+   section "${replica_name} Hosts"
    if [ -s "$replica_hosts_file" ]; then
        cat "$replica_hosts_file"
    else
@@ -1248,7 +1248,6 @@ section_mysql_files () {
 section_percona_xtradb_cluster () {
    local mysql_var="$1"
    local mysql_status="$2"
-   local replica_name="$3"
 
    name_val "Cluster Name"    "$(get_var "wsrep_cluster_name" "$mysql_var")"
    name_val "Cluster Address" "$(get_var "wsrep_cluster_address" "$mysql_var")"
@@ -1259,7 +1258,7 @@ section_percona_xtradb_cluster () {
    name_val "Node Status"     "$(get_var "wsrep_cluster_status" "$mysql_status")"
 
    name_val "SST Method"      "$(get_var "wsrep_sst_method" "$mysql_var")"
-   name_val "${replica_name^} Threads"   "$(get_var "wsrep_${replica_name}_threads" "$mysql_var")"
+   name_val "Slave Threads"   "$(get_var "wsrep_slave_threads" "$mysql_var")"
 
    name_val "Ignore Split Brain" "$( parse_wsrep_provider_options "pc.ignore_sb" "$mysql_var" )"
    name_val "Ignore Quorum" "$( parse_wsrep_provider_options "pc.ignore_quorum" "$mysql_var" )"
@@ -1427,7 +1426,7 @@ report_mysql_summary () {
    if [ -n "${has_wsrep:-""}" ]; then
       local wsrep_on="$(feat_on "$dir/mysql-variables" "wsrep_on")"
       if [ "${wsrep_on:-""}" = "Enabled" ]; then
-         section_percona_xtradb_cluster "$dir/mysql-variables" "$dir/mysql-status" "$replica_name"
+         section_percona_xtradb_cluster "$dir/mysql-variables" "$dir/mysql-status"
       else
          name_val "wsrep_on" "OFF"
       fi
@@ -1465,7 +1464,8 @@ report_mysql_summary () {
       fi
       local semisync_enabled_replica="$(get_var rpl_semi_sync_${replica_name}_enabled "$dir/mysql-variables")"
       if    [ "$semisync_enabled_replica" = "OFF" -o "$semisync_enabled_replica" = "0" -o -z "$semisync_enabled_replica" ]; then
-         name_val "${replica_name^}" "Disabled"
+         local replica_name_cap=`echo "$replica_name" | sed 's/[^ ]*/\u&/'`
+         name_val "${replica_name_cap}" "Disabled"
       else
          _semi_sync_stats_for "${replica_name}" "$dir/mysql-variables" "${replica_name}"
       fi

@@ -13,6 +13,7 @@ use Test::More;
 
 use MySQLConfig;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use TextResultSetParser;
 use PerconaTest;

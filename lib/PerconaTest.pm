@@ -70,6 +70,7 @@ our @EXPORT      = qw(
    $test_diff
    $source_name
    $source_status
+   $source_reset
    $replica_name
 );
 
@@ -83,10 +84,12 @@ eval {
 
 our $source_name = 'source';
 our $source_status = 'binary log';
+our $source_reset = 'binary logs and gtids';
 our $replica_name = 'replica';
 if ( $sandbox_version < '8.1' || ( $ENV{FORK} || "" eq 'mariadb' ) ) {
    $source_name = 'master';
    $source_status = 'master';
+   $source_reset = 'master';
    $replica_name = 'slave';
 }
 
@@ -150,7 +153,7 @@ our $dsn_opts = [
       copy => 1,
    },
    {
-      key  => 'mysql_ssl',
+      key  => 's',
       desc => 'Use SSL',
       dsn  => 'mysql_ssl',
       copy => 1,

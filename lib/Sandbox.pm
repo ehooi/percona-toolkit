@@ -38,7 +38,6 @@ $Data::Dumper::Sortkeys  = 1;
 $Data::Dumper::Quotekeys = 0;
 use constant PTDEBUG    => $ENV{PTDEBUG}    || 0;
 use constant PTDEVDEBUG => $ENV{PTDEVDEBUG} || 0;
-use VersionParser;
 
 use IO::Socket::INET;
 
@@ -636,8 +635,8 @@ sub _d {
    print STDERR "# $package:$line $PID ", join(' ', @_), "\n";
 }
 
-1;
 }
+1;
 # ###########################################################################
 # End Sandbox package
 # ###########################################################################

@@ -25,6 +25,7 @@ use Quoter;
 use ReportFormatter;
 use OptionParser;
 use DSNParser;
+use VersionParser;
 use ReportFormatter;
 use ExplainAnalyzer;
 use Sandbox;

@@ -15,6 +15,7 @@ use Data::Dumper;
 use Quoter;
 use PerconaTest;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 
 my $dp  = new DSNParser(opts=>$dsn_opts);

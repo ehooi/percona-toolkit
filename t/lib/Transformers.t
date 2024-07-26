@@ -159,6 +159,7 @@ is(
 );
 
 use DSNParser;
+use VersionParser;
 use Sandbox;
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);

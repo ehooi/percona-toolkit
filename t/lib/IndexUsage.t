@@ -16,6 +16,7 @@ use constant PTDEBUG => $ENV{PTDEBUG} || 0;
 use IndexUsage;
 use OptionParser;
 use DSNParser;
+use VersionParser;
 use Transformers;
 use QueryRewriter;
 use Sandbox;

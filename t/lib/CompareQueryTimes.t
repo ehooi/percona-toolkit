@@ -14,6 +14,7 @@ use Test::More;
 use ReportFormatter;
 use Transformers;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use CompareQueryTimes;
 use PerconaTest;

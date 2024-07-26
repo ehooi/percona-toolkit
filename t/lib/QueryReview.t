@@ -18,6 +18,7 @@ use TableParser;
 use Quoter;
 use SlowLogParser;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

@@ -13,6 +13,7 @@ use Test::More tests => 2;
 
 use Outfile;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

@@ -15,6 +15,7 @@ use SchemaIterator;
 use FileIterator;
 use Quoter;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use OptionParser;
 use TableParser;

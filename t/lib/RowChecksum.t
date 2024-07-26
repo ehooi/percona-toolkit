@@ -15,6 +15,7 @@ use RowChecksum;
 use TableParser;
 use Quoter;
 use DSNParser;
+use VersionParser;
 use OptionParser;
 use Sandbox;
 use PerconaTest;

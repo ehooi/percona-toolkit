@@ -16,6 +16,7 @@ use Sys::Hostname qw(hostname);
 
 use VersionCheck;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 use Percona::Toolkit;

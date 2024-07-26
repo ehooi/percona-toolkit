@@ -21,6 +21,7 @@ use ExplainAnalyzer;
 use QueryRewriter;
 use QueryParser;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

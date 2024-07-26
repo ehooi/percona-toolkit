@@ -15,6 +15,7 @@ use TableParser;
 use TableChunker;
 use Quoter;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

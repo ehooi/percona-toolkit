@@ -78,6 +78,7 @@ is_deeply(
 # Test online stuff, e.g. get_cols_and_struct().
 # #############################################################################
 use DSNParser;
+use VersionParser;
 use Sandbox;
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);

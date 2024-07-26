@@ -12,6 +12,7 @@ use English qw(-no_match_vars);
 use Test::More;
 
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 use Progress;

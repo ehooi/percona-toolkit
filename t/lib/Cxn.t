@@ -14,6 +14,7 @@ use Test::More;
 use Sandbox;
 use OptionParser;
 use DSNParser;
+use VersionParser;
 use Quoter;
 use PerconaTest;
 use Cxn;
@@ -213,7 +214,7 @@ is_deeply(
       S => undef,
       D => undef,
       t => undef,
-      mysql_ssl => undef,
+      s => undef,
    },
    "cxn->dsn()"
 );
@@ -241,7 +242,7 @@ is_deeply(
       S => undef,
       D => undef,
       t => undef,
-      mysql_ssl => undef,
+      s => undef,
    },
    "Defaults to h=localhost"
 );
@@ -261,7 +262,7 @@ is_deeply(
       S => undef,
       D => undef,
       t => undef,
-      mysql_ssl => undef,
+      s => undef,
    },
    "Default cxn inherits default connection options"
 );

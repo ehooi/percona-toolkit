@@ -17,6 +17,7 @@ use TableParser;
 use Quoter;
 use OptionParser;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

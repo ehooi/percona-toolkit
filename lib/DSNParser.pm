@@ -132,7 +132,7 @@ sub parse {
    # Parse given props
    foreach my $dsn_part ( split($dsn_sep, $dsn) ) {
       $dsn_part =~ s/\\,/,/g;
-      if ( my ($prop_key, $prop_val) = $dsn_part =~  m/^(.*?)=(.*)$/ ) {
+      if ( my ($prop_key, $prop_val) = $dsn_part =~  m/^(.)=(.*)$/ ) {
          # Handle the typical DSN parts like h=host, P=3306, etc.
          $given_props{$prop_key} = $prop_val;
       }
@@ -243,9 +243,8 @@ sub get_cxn_params {
       $dsn = 'DBI:mysql:' . ( $info->{D} || '' ) . ';'
          . join(';', map  { "$opts{$_}->{dsn}=$info->{$_}" }
                      grep { defined $info->{$_} }
-                     qw(F h P S A mysql_ssl))
+                     qw(F h P S A s))
          . ';mysql_read_default_group=client'
-         #. ($info->{s} ? ';mysql_ssl=1' : '')
          . ($info->{L} ? ';mysql_local_infile=1' : '');
    }
    PTDEBUG && _d($dsn);

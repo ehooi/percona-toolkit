@@ -81,7 +81,7 @@ PXC_SKIP: {
             h => '127.0.0.1',
             p => 'msandbox',
             t => undef,
-            mysql_ssl => undef,
+            s => undef,
             u => 'msandbox',
             server_id => 12346,
             source_id => 12345,
@@ -257,7 +257,7 @@ my $dbh;
 my @slaves;
 my @sldsns;
 
-my $dsn = $dp->parse("h=127.0.0.1,P=$port_for{source},u=msandbox,p=msandbox,mysql_ssl=>1");
+my $dsn = $dp->parse("h=127.0.0.1,P=$port_for{source},u=msandbox,p=msandbox,s=>1");
 $dbh    = $dp->get_dbh($dp->get_cxn_params($dsn), { AutoCommit => 1 });
 
 my $callback = sub {
@@ -305,7 +305,7 @@ is_deeply(
       D => undef,
       A => undef,
       t => undef,
-      mysql_ssl => undef,
+      s => undef,
    },
    'Got master DSN',
 );
@@ -704,7 +704,7 @@ is_deeply(
       p => 'msandbox',
       t => undef,
       u => 'msandbox',
-      mysql_ssl => undef,
+      s => undef,
    },
    'get_replicas() from DSN table'
 );

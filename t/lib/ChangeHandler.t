@@ -14,6 +14,7 @@ use Test::More;
 use ChangeHandler;
 use Quoter;
 use DSNParser;
+use VersionParser;
 use Sandbox;
 use PerconaTest;
 

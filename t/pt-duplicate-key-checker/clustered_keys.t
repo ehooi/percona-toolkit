@@ -15,12 +15,13 @@ use PerconaTest;
 use Sandbox;
 require "$trunk/bin/pt-duplicate-key-checker";
 
+require VersionParser;
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('master');
+my $dbh = $sb->get_dbh_for('source');
 
 if ( !$dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+   plan skip_all => 'Cannot connect to sandbox source';
 }
 
 my $cnf    = "/tmp/12345/my.sandbox.cnf";
@@ -44,7 +45,7 @@ if ($sandbox_version ge '8.0') {
 # #############################################################################
 # Issue 295: Enhance rules for clustered keys in mk-duplicate-key-checker
 # #############################################################################
-$sb->load_file('master', 't/pt-duplicate-key-checker/samples/issue_295.sql', 'test');
+$sb->load_file('source', 't/pt-duplicate-key-checker/samples/issue_295.sql', 'test');
 ok(
    no_diff(
       sub { pt_duplicate_key_checker::main(@args, qw(-d issue_295)) },
@@ -59,7 +60,7 @@ ok(
 # Error if InnoDB table has no PK or unique indexes
 # https://bugs.launchpad.net/percona-toolkit/+bug/1036804
 # #############################################################################
-$sb->load_file('master', "t/pt-duplicate-key-checker/samples/idb-no-uniques-bug-894140.sql");
+$sb->load_file('source', "t/pt-duplicate-key-checker/samples/idb-no-uniques-bug-894140.sql");
 
 # PTDEBUG was auto-vivifying $clustered_key:
 #
@@ -96,7 +97,7 @@ unlike(
 # 
 # https://bugs.launchpad.net/percona-toolkit/+bug/1201443
 # #############################################################################
-$sb->load_file('master', "t/pt-duplicate-key-checker/samples/fk_chosen_index_bug_1201443.sql");
+$sb->load_file('source', "t/pt-duplicate-key-checker/samples/fk_chosen_index_bug_1201443.sql");
 
 $output = `$trunk/bin/pt-duplicate-key-checker F=$cnf -d fk_chosen_index_bug_1201443 2>&1`;
 
