@@ -503,7 +503,7 @@ sub get_replica_status {
    my $server_version = VersionParser->new($dbh);
    my $replica_name = 'replica';
    if ( $server_version < '8.1' || $server_version->flavor() =~ m/maria/ ) {
-      $replica_name = 'replica';
+      $replica_name = 'slave';
    }
 
    if ( !$self->{not_a_replica}->{$dbh} ) {
@@ -678,7 +678,7 @@ sub stop_replica {
    my $vp = VersionParser->new($dbh);
    my $replica_name = 'replica';
    if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $replica_name = 'replica';
+      $replica_name = 'slave';
    }
    my $sth = $self->{sths}->{$dbh}->{STOP_REPLICA}
          ||= $dbh->prepare("STOP ${replica_name}");

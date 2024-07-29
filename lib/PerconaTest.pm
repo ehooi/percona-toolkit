@@ -71,6 +71,7 @@ our @EXPORT      = qw(
    $source_name
    $source_status
    $source_reset
+   $source_change
    $replica_name
 );
 
@@ -85,11 +86,13 @@ eval {
 our $source_name = 'source';
 our $source_status = 'binary log';
 our $source_reset = 'binary logs and gtids';
+our $source_change = 'replication source';
 our $replica_name = 'replica';
 if ( $sandbox_version < '8.1' || ( $ENV{FORK} || "" eq 'mariadb' ) ) {
    $source_name = 'master';
    $source_status = 'master';
    $source_reset = 'master';
+   $source_change = 'master';
    $replica_name = 'slave';
 }
 
