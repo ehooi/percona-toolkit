@@ -18,54 +18,54 @@ require "$trunk/bin/pt-slave-find";
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $slave1_dbh = $sb->get_dbh_for('slave1');
-my $slave2_dbh = $sb->get_dbh_for('slave2');
+my $replica1_dbh = $sb->get_dbh_for('replica1');
+my $replica2_dbh = $sb->get_dbh_for('replica2');
 
-# This test is sensitive to ghost/old slaves created/destroyed by other
-# tests.  So we stop the slaves, restart the master, and start everything
+# This test is sensitive to ghost/old replicas created/destroyed by other
+# tests.  So we stop the replicas, restart the source, and start everything
 # again.  Hopefully this will return the env to its original state.
-$slave2_dbh->do("STOP SLAVE");
-$slave1_dbh->do("STOP SLAVE");
+$replica2_dbh->do("STOP ${replica_name}");
+$replica1_dbh->do("STOP ${replica_name}");
 diag(`/tmp/12345/stop >/dev/null`);
 diag(`/tmp/12345/start >/dev/null`);
-$slave1_dbh->do("START SLAVE");
-$slave2_dbh->do("START SLAVE");
+$replica1_dbh->do("START ${replica_name}");
+$replica2_dbh->do("START ${replica_name}");
 
-my $master_dbh = $sb->get_dbh_for('master');
+my $source_dbh = $sb->get_dbh_for('source');
 
-if ( !$master_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+if ( !$source_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox source';
 }
-elsif ( !$slave1_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave';
+elsif ( !$replica1_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica';
 }
-elsif ( !$slave2_dbh ) {
-   plan skip_all => 'Cannot connect to second sandbox slave';
+elsif ( !$replica2_dbh ) {
+   plan skip_all => 'Cannot connect to second sandbox replica';
 }
 else {
    plan tests => 10;
 }
 
-my @args = ('h=127.0.0.1,P=12345,u=msandbox,p=msandbox');
+my @args = ('h=127.0.0.1,P=12345,u=msandbox,p=msandbox,s=1');
 
 my $output = `$trunk/bin/pt-slave-find --help`;
 like($output, qr/Prompt for a password/, 'It compiles');
 
 # Double check that we're setup correctly.
-my $row = $slave2_dbh->selectall_arrayref('SHOW SLAVE STATUS', {Slice => {}});
+my $row = $replica2_dbh->selectall_arrayref("SHOW ${replica_name} STATUS", {Slice => {}});
 is(
-   $row->[0]->{master_port},
+   $row->[0]->{source_port},
    '12346',
-   'slave2 is slave of slave1'
+   'replica2 is replica of replica1'
 );
 
-$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --report-format hostname`;
+$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname`;
 my $expected = <<EOF;
 127.0.0.1:12345
 +- 127.0.0.1:12346
    +- 127.0.0.1:12347
 EOF
-is($output, $expected, 'Master with slave and slave of slave');
+is($output, $expected, 'Source with replica and replica of replica');
 
 ###############################################################################
 # Test --resolve-hostname option (we don't know the hostname of the test
@@ -79,10 +79,10 @@ like (
 ) or diag($output);
 
 # #############################################################################
-# Until MasterSlave::find_slave_hosts() is improved to overcome the problems
-# with SHOW SLAVE HOSTS, this test won't work.
+# Until MasterSlave::find_replica_hosts() is improved to overcome the problems
+# with SHOW REPLICA HOSTS, this test won't work.
 # #############################################################################
-# Make slave2 slave of master.
+# Make replica2 replica of source.
 #diag(`../../mk-slave-move/mk-slave-move --sibling-of-master h=127.1,P=12347`);
 #$output = `perl ../mk-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox`;
 #$expected = <<EOF;
@@ -90,7 +90,7 @@ like (
 #+- 127.0.0.1:12346
 #+- 127.0.0.1:12347
 #EOF
-#is($output, $expected, 'Master with two slaves');
+#is($output, $expected, 'Source with two replicas');
 
 # #########################################################################
 # Issue 391: Add --pid option to all scripts
@@ -108,7 +108,7 @@ like(
 # #############################################################################
 # Summary report format.
 # #############################################################################
-my $outfile = "/tmp/mk-slave-find-output.txt";
+my $outfile = "/tmp/mk-replica-find-output.txt";
 #diag(`rm -rf $outfile >/dev/null`);
 diag(`rm -rf $outfile`);
 
@@ -126,31 +126,32 @@ $result =~ s/Uptime.*/Uptime/g;
 $result =~ s/[0-9]* seconds/0 seconds/g;
 $result =~ s/Binary logging.*/Binary logging/g;
 $result =~ s/Replication     Is a slave, has 1 slaves connected, is.*/Replication     Is a slave, has 1 slaves connected, is/g;
+$result =~ s/Replication     Is a replica, has 1 replicas connected, is.*/Replication     Is a replica, has 1 replicas connected, is/g;
 
 my $innodb_re = qr/InnoDB version\s+(.*)/;
 my (@innodb_versions) = $result =~ /$innodb_re/g;
 $result =~ s/$innodb_re/InnoDB version  BUILTIN/g;
 
-my $master_version = VersionParser->new($master_dbh);
-my $slave_version  = VersionParser->new($slave1_dbh);
-my $slave2_version = VersionParser->new($slave2_dbh);
+my $source_version = VersionParser->new($source_dbh);
+my $replica_version  = VersionParser->new($replica1_dbh);
+my $replica2_version = VersionParser->new($replica2_dbh);
 
 is(
    $innodb_versions[0],
-   $master_version->innodb_version(),
-   "pt-slave-find gets the right InnoDB version for the master"
+   $source_version->innodb_version(),
+   "pt-slave-find gets the right InnoDB version for the source"
 );
 
 is(
    $innodb_versions[1],
-   $slave_version->innodb_version(),
-   "...and for the first slave"
-);
+   $replica_version->innodb_version(),
+   "...and for the first replica"
+) or diag($output);
 
 is(
    $innodb_versions[2],
-   $slave2_version->innodb_version(),
-   "...and for the first slave"
+   $replica2_version->innodb_version(),
+   "...and for the second replica"
 );
 
 ok(

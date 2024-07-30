@@ -27,18 +27,18 @@ diag(`REPLICATION_THREADS=2 GTID=ON_PERMISSIVE $trunk/sandbox/test-env start >/d
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh  = $sb->get_dbh_for('master');
-my $slave_dbh   = $sb->get_dbh_for('slave1');
-my $slave2_dbh  = $sb->get_dbh_for('slave2');
+my $source_dbh  = $sb->get_dbh_for('source');
+my $replica_dbh   = $sb->get_dbh_for('replica1');
+my $replica2_dbh  = $sb->get_dbh_for('replica2');
 
-if ( !$master_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+if ( !$source_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox source';
 }
-elsif ( !$slave_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave1';
+elsif ( !$replica_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica1';
 }
-elsif ( !$slave2_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave2';
+elsif ( !$replica2_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica2';
 }
 
 # #############################################################################
@@ -49,14 +49,14 @@ my $output=`$trunk/bin/pt-slave-restart --run-time=1s -h 127.0.0.1 -P 12346 -u m
 
 like(
    $output,
-   qr/Cannot skip transactions properly.*slave_parallel_workers/,
+   qr/Cannot skip transactions properly.*${replica_name}_parallel_workers/,
    "pt-slave-restart exits with multiple replication threads"
-);
+) or diag($output);
 
 # #############################################################################
 # Done.
 # #############################################################################
-diag(`rm -f /tmp/pt-slave-re*`);
+diag(`rm -f /tmp/pt-replica-re*`);
 
 diag(`$trunk/sandbox/test-env stop >/dev/null`);
 diag(`$trunk/sandbox/test-env start >/dev/null`);

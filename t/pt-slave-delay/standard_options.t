@@ -17,8 +17,8 @@ require "$trunk/bin/pt-slave-delay";
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh = $sb->get_dbh_for('master');
-my $slave_dbh  = $sb->get_dbh_for('slave1');
+my $master_dbh = $sb->get_dbh_for('source');
+my $slave_dbh  = $sb->get_dbh_for('replica1');
 
 if ($sandbox_version ge '5.7') {
    plan skip_all => 'Use SQL_DELAY';

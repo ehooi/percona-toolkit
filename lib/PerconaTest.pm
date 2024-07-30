@@ -775,7 +775,7 @@ sub get_source_binlog_pos {
       $source_name = 'master';
    }
 
-   my $sql = "SHOW ${source_name} STATUS";
+   my $sql = "SHOW ${source_status} STATUS";
    my $ms  = $dbh->selectrow_hashref($sql);
    return $ms->{position};
 }

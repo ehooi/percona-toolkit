@@ -19,8 +19,8 @@ require "$trunk/bin/pt-slave-delay";
 
 my $dp  = DSNParser->new(opts => $dsn_opts);
 my $sb  = Sandbox->new(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh = $sb->get_dbh_for('master');
-my $dbh        = $sb->get_dbh_for('slave1');
+my $source_dbh = $sb->get_dbh_for('source');
+my $dbh        = $sb->get_dbh_for('replica1');
 
 if ($sandbox_version ge '5.7') {
    plan skip_all => 'Use SQL_DELAY';
@@ -65,7 +65,7 @@ else {
    sleep 1;
    diag(`/tmp/12346/start >/dev/null`);
    # Ensure we don't break the sandbox -- instance 12347 will be disconnected
-   # when its master gets rebooted
+   # when its source gets rebooted
    diag(`/tmp/12347/use -e "stop slave; start slave"`);
    exit;
 }
@@ -112,7 +112,7 @@ waitpid ($pid, 0);
 # #############################################################################
 # Done.
 # #############################################################################
-$sb->wipe_clean($master_dbh);
+$sb->wipe_clean($source_dbh);
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 done_testing;
 exit;

@@ -21,46 +21,46 @@ diag("Sandbox restarted");
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh = $sb->get_dbh_for('master');
-my $slave_dbh  = $sb->get_dbh_for('slave1');
+my $source_dbh = $sb->get_dbh_for('source');
+my $replica_dbh  = $sb->get_dbh_for('replica1');
 
-if ( !$master_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+if ( !$source_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox source';
 }
-elsif ( !$slave_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave';
+elsif ( !$replica_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica';
 }
 
-$master_dbh->do('DROP DATABASE IF EXISTS test');
-$master_dbh->do('CREATE DATABASE test');
-$master_dbh->do('CREATE TABLE test.t (a INT)');
-$sb->wait_for_slaves;
+$source_dbh->do('DROP DATABASE IF EXISTS test');
+$source_dbh->do('CREATE DATABASE test');
+$source_dbh->do('CREATE TABLE test.t (a INT)');
+$sb->wait_for_replicas;
 
 # Bust replication
-$slave_dbh->do('DROP TABLE test.t');
-$master_dbh->do('INSERT INTO test.t SELECT 1');
+$replica_dbh->do('DROP TABLE test.t');
+$source_dbh->do('INSERT INTO test.t SELECT 1');
 wait_until(
    sub {
-      my $row = $slave_dbh->selectrow_hashref('show slave status');
+      my $row = $replica_dbh->selectrow_hashref("show ${replica_name} status");
       return $row->{last_sql_errno};
    }
 );
 
-my $r = $slave_dbh->selectrow_hashref('show slave status');
+my $r = $replica_dbh->selectrow_hashref("show ${replica_name} status");
 like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'It is busted');
 
 # Start an instance
-diag(`$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --daemonize --pid /tmp/pt-slave-restart.pid --log /tmp/pt-slave-restart.log`);
+diag(`$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --daemonize --pid /tmp/pt-replica-restart.pid --log /tmp/pt-replica-restart.log`);
 my $output = `ps x | grep 'pt-slave-restart \-\-max\-sleep ' | grep -v grep | grep -v pt-slave-restart.t`;
 like($output, qr/pt-slave-restart --max/, 'It lives');
 
 unlike($output, qr/Table 'test.t' doesn't exist'/, 'It is not busted');
 
-ok(-f '/tmp/pt-slave-restart.pid', 'PID file created');
-ok(-f '/tmp/pt-slave-restart.log', 'Log file created');
+ok(-f '/tmp/pt-replica-restart.pid', 'PID file created');
+ok(-f '/tmp/pt-replica-restart.log', 'Log file created');
 
 my ($pid) = $output =~ /^\s*(\d+)\s+/;
-$output = `cat /tmp/pt-slave-restart.pid`;
+$output = `cat /tmp/pt-replica-restart.pid`;
 chomp($output);
 is($output, $pid, 'PID file has correct PID');
 
@@ -69,28 +69,28 @@ sleep 1;
 $output = `ps -eaf | grep pt-slave-restart | grep -v grep`;
 unlike($output, qr/pt-slave-restart --max/, 'It is dead');
 
-diag(`rm -f /tmp/pt-slave-re*`);
-ok(! -f '/tmp/pt-slave-restart.pid', 'PID file removed');
+diag(`rm -f /tmp/pt-replica-re*`);
+ok(! -f '/tmp/pt-replica-restart.pid', 'PID file removed');
 
 # #############################################################################
 # Issue 118: pt-slave-restart --error-numbers option is broken
 # #############################################################################
-$output = `$trunk/bin/pt-slave-restart --stop --sentinel /tmp/pt-slave-restartup --error-numbers=1205,1317`;
-like($output, qr{Successfully created file /tmp/pt-slave-restartup}, '--error-numbers works (issue 118)');
+$output = `$trunk/bin/pt-slave-restart --stop --sentinel /tmp/pt-replica-restartup --error-numbers=1205,1317`;
+like($output, qr{Successfully created file /tmp/pt-replica-restartup}, '--error-numbers works (issue 118)');
 
-diag(`rm -f /tmp/pt-slave-re*`);
+diag(`rm -f /tmp/pt-replica-re*`);
 
 # #############################################################################
 # Issue 459: mk-slave-restart --error-text is broken
 # #############################################################################
-# Bust replication again.  At this point, the master has test.t but
-# the slave does not.
-$master_dbh->do('DROP TABLE IF EXISTS test.t');
-$master_dbh->do('CREATE TABLE test.t (a INT)');
+# Bust replication again.  At this point, the source has test.t but
+# the replica does not.
+$source_dbh->do('DROP TABLE IF EXISTS test.t');
+$source_dbh->do('CREATE TABLE test.t (a INT)');
 sleep 1;
-$slave_dbh->do('DROP TABLE test.t');
-$master_dbh->do('INSERT INTO test.t SELECT 1');
-$output = `/tmp/12346/use -e 'show slave status'`;
+$replica_dbh->do('DROP TABLE test.t');
+$source_dbh->do('INSERT INTO test.t SELECT 1');
+$output = `/tmp/12346/use -e "show ${replica_name} status"`;
 like(
    $output,
    qr/Table 'test.t' doesn't exist'/,
@@ -140,7 +140,7 @@ is(
 # #############################################################################
 # Done.
 # #############################################################################
-diag(`rm -f /tmp/pt-slave-re*`);
+diag(`rm -f /tmp/pt-replica-re*`);
 diag(`$trunk/sandbox/test-env restart`);
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 done_testing;

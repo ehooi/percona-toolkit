@@ -23,18 +23,18 @@ require "$trunk/bin/pt-table-checksum";
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh = $sb->get_dbh_for('master');
-my $slave1_dbh = $sb->get_dbh_for('slave1');
-my $slave2_dbh = $sb->get_dbh_for('slave2');
+my $source_dbh = $sb->get_dbh_for('source');
+my $replica1_dbh = $sb->get_dbh_for('replica1');
+my $replica2_dbh = $sb->get_dbh_for('replica2');
 
-if ( !$master_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+if ( !$source_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox source';
 }
-elsif ( !$slave1_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave1';
+elsif ( !$replica1_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica1';
 }
-elsif ( !$slave2_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave2';
+elsif ( !$replica2_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica2';
 }
 else {
    plan tests => 4;
@@ -43,31 +43,31 @@ else {
 # The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
 # so we need to specify --set-vars innodb_lock_wait_timeout=3 else the tool will die.
 # And --max-load "" prevents waiting for status variables.
-my $master_dsn = 'h=127.1,P=12345,u=msandbox,p=msandbox';
-my @args       = ($master_dsn, qw(--set-vars innodb_lock_wait_timeout=3), '--max-load', '',
+my $source_dsn = 'h=127.1,P=12345,u=msandbox,p=msandbox';
+my @args       = ($source_dsn, qw(--set-vars innodb_lock_wait_timeout=3), '--max-load', '',
                   '--progress', 'time,1');
 my $output;
 my $row;
 my $exit_status;
 
-# Create the checksum table, else stopping the slave below
+# Create the checksum table, else stopping the replica below
 # will cause the tool to wait forever for the --replicate
-# table to replicate to the stopped slave.
+# table to replicate to the stopped replica.
 pt_table_checksum::main(@args, qw(-t sakila.city --quiet));
 
 # ############################################################################
-# --check-slave-lag
+# --check-replica-lag
 # ############################################################################
 
-# Stop slave1.
-$sb->wait_for_slaves();
-$slave1_dbh->do('stop slave sql_thread');
+# Stop replica1.
+$sb->wait_for_replicas();
+$replica1_dbh->do("stop ${replica_name} sql_thread");
 wait_until(sub {
-   my $ss = $slave1_dbh->selectrow_hashref("SHOW SLAVE STATUS");
-   return $ss->{slave_sql_running} eq 'Yes';
+   my $ss = $replica1_dbh->selectrow_hashref("SHOW ${replica_name} STATUS");
+   return $ss->{"${replica_name}_sql_running"} eq 'Yes';
 });
 
-# Try to checksum, but since slave1 is stopped, the tool should
+# Try to checksum, but since replica1 is stopped, the tool should
 # wait for it to stop "lagging".
 ($output) = PerconaTest::full_output(
    sub { pt_table_checksum::main(@args, qw(-t sakila.city)) },
@@ -80,31 +80,31 @@ like(
    "Waits for stopped replica"
 );
 
-# Checksum but only use slave2 to check for lag.
+# Checksum but only use replica2 to check for lag.
 $exit_status = pt_table_checksum::main(@args, qw(-t sakila.city --quiet),
-   qw(--no-replicate-check), '--check-slave-lag', 'P=12347');
+   qw(--no-replicate-check), '--check-replica-lag', 'P=12347');
 
 is(
    $exit_status,
    0,
-   "Ignores slave1 when --check-slave-lag=slave2"
+   "Ignores replica1 when --check-replica-lag=replica2"
 );
 
-$row = $master_dbh->selectall_arrayref("select * from percona.checksums where db='sakila' and tbl='city'");
+$row = $source_dbh->selectall_arrayref("select * from percona.checksums where db='sakila' and tbl='city'");
 is(
    scalar @$row,
    1,
    "Checksummed table"
 );
 
-$slave1_dbh->do('START SLAVE sql_thread');
-$slave2_dbh->do('STOP SLAVE');
-$slave2_dbh->do('START SLAVE');
-$sb->wait_for_slaves();
+$replica1_dbh->do("START ${replica_name} sql_thread");
+$replica2_dbh->do("STOP ${replica_name}");
+$replica2_dbh->do("START ${replica_name}");
+$sb->wait_for_replicas();
 
 # #############################################################################
 # Done.
 # #############################################################################
-$sb->wipe_clean($master_dbh);
+$sb->wipe_clean($source_dbh);
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 exit;
