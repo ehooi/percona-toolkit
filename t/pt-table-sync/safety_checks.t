@@ -19,18 +19,18 @@ require "$trunk/bin/pt-table-sync";
 my $output;
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $master_dbh = $sb->get_dbh_for('master');
-my $slave_dbh  = $sb->get_dbh_for('slave1');
+my $source_dbh = $sb->get_dbh_for('source');
+my $replica_dbh  = $sb->get_dbh_for('replica1');
 
-if ( !$master_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox master';
+if ( !$source_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox source';
 }
-elsif ( !$slave_dbh ) {
-   plan skip_all => 'Cannot connect to sandbox slave';
+elsif ( !$replica_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica';
 }
 
-my $master_dsn = $sb->dsn_for('master');
-my $slave1_dsn = $sb->dsn_for('slave1');
+my $source_dsn = $sb->dsn_for('source');
+my $replica1_dsn = $sb->dsn_for('replica1');
 
 # #############################################################################
 # --[no]check-child-tables
@@ -38,16 +38,16 @@ my $slave1_dsn = $sb->dsn_for('slave1');
 # https://bugs.launchpad.net/percona-toolkit/+bug/1223458
 # #############################################################################
 
-$sb->load_file('master', 't/pt-table-sync/samples/on_del_cas.sql');
+$sb->load_file('source', 't/pt-table-sync/samples/on_del_cas.sql');
 
-$master_dbh->do("INSERT INTO on_del_cas.parent VALUES (1), (2)");
-$master_dbh->do("INSERT INTO on_del_cas.child1 VALUES (null, 1)");
-$master_dbh->do("INSERT INTO on_del_cas.child2 VALUES (null, 1)");
-$sb->wait_for_slaves();
+$source_dbh->do("INSERT INTO on_del_cas.parent VALUES (1), (2)");
+$source_dbh->do("INSERT INTO on_del_cas.child1 VALUES (null, 1)");
+$source_dbh->do("INSERT INTO on_del_cas.child2 VALUES (null, 1)");
+$sb->wait_for_replicas();
 
 $output = output(
    sub {
-      pt_table_sync::main($slave1_dsn, qw(--sync-to-master),
+      pt_table_sync::main($replica1_dsn, qw(--sync-to-source),
          qw(--execute -d on_del_cas))
    },
    stderr => 1,
@@ -59,7 +59,7 @@ like(
    "check-child-tables: error message"
 );
 
-my $rows = $slave_dbh->selectall_arrayref("select * from on_del_cas.child2");
+my $rows = $replica_dbh->selectall_arrayref("select * from on_del_cas.child2");
 is_deeply(
    $rows,
    [ [1,1] ],
@@ -68,7 +68,7 @@ is_deeply(
 
 $output = output(
    sub {
-      pt_table_sync::main($slave1_dsn, qw(--sync-to-master),
+      pt_table_sync::main($replica1_dsn, qw(--sync-to-source),
          qw(--print -d on_del_cas))
    },
    stderr => 1,
@@ -83,6 +83,6 @@ unlike(
 # #############################################################################
 # Done.
 # #############################################################################
-$sb->wipe_clean($master_dbh);
+$sb->wipe_clean($source_dbh);
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 done_testing;

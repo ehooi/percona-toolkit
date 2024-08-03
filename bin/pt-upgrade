@@ -940,7 +940,7 @@ sub get_cxn_params {
       $dsn = 'DBI:mysql:' . ( $info->{D} || '' ) . ';'
          . join(';', map  { "$opts{$_}->{dsn}=$info->{$_}" }
                      grep { defined $info->{$_} }
-                     qw(F h P S A))
+                     qw(F h P S A s))
          . ';mysql_read_default_group=client'
          . ($info->{L} ? ';mysql_local_infile=1' : '');
    }
@@ -7958,7 +7958,7 @@ use constant {
    COM_BINLOG_DUMP         => '12',
    COM_TABLE_DUMP          => '13',
    COM_CONNECT_OUT         => '14',
-   COM_REGISTER_SLAVE      => '15',
+   COM_REGISTER_REPLICA    => '15',
    COM_STMT_PREPARE        => '16',
    COM_STMT_EXECUTE        => '17',
    COM_STMT_SEND_LONG_DATA => '18',
@@ -7992,7 +7992,7 @@ my %com_for = (
    '12' => 'COM_BINLOG_DUMP',
    '13' => 'COM_TABLE_DUMP',
    '14' => 'COM_CONNECT_OUT',
-   '15' => 'COM_REGISTER_SLAVE',
+   '15' => 'COM_REGISTER_REPLICA',
    '16' => 'COM_STMT_PREPARE',
    '17' => 'COM_STMT_EXECUTE',
    '18' => 'COM_STMT_SEND_LONG_DATA',

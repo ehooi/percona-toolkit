@@ -73,7 +73,7 @@ my ($output) = full_output(sub {
 
 like(
    $output,
-   qr/\Qdual-master or ring replication configuration?\E$/sm,
+   qr/\Qdual-source or ring replication configuration?\E$/sm,
    "Sentences are delimited by . or ?"
 );
 
