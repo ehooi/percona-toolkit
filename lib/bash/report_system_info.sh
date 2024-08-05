@@ -1147,6 +1147,7 @@ report_system_summary () { local PTFUNCNAME=report_system_summary;
 
 report_transparent_huge_pages () {
 
+  STATUS_THP_SYSTEM=0
   if [ -f /sys/kernel/mm/transparent_hugepage/enabled ]; then
     CONTENT_TRANSHP=$(</sys/kernel/mm/transparent_hugepage/enabled)
     STATUS_THP_SYSTEM=$(echo $CONTENT_TRANSHP | grep -cv '\[never\]')
