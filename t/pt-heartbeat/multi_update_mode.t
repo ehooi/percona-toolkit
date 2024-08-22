@@ -110,7 +110,7 @@ ok(
 );
 
 ok(
-   $rows->{12346}->{"relay_${source_name}_log_file"} && $rows->{12346}->{"exec_${source_name}_log_pos"},
+   $rows->{12346}->{"relay_source_log_file"} && $rows->{12346}->{"exec_source_log_pos"},
    "Replica1 relay_source_log_file and exec_source_log_pos for source"
 ) or diag(Dumper($rows));
 
@@ -144,7 +144,7 @@ ok(
 );
 
 ok(
-   $rows->{12347}->{"relay_${source_name}_log_file"} && $rows->{12347}->{"exec_${source_name}_log_pos"},
+   $rows->{12347}->{"relay_source_log_file"} && $rows->{12347}->{"exec_source_log_pos"},
    "Replica2 relay_source_log_file and exec_source_log_pos for source"
 );
 

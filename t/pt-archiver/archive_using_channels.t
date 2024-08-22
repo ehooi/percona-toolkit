@@ -68,7 +68,7 @@ is(
     "All rows were loaded into source 1",
 );
 
-my @args = ('--source', $source1_dsn.',D=test,t=t1', '--purge', '--where', sprintf('id >= %d', $num_rows / 2), "--check-${replica_name}-lag", $replica1_dsn);
+my @args = ('--source', $source1_dsn.',D=test,t=t1', '--purge', '--where', sprintf('id >= %d', $num_rows / 2), "--check-replica-lag", $replica1_dsn);
 
 my ($exit_status, $output);
 
@@ -76,8 +76,6 @@ $output = output(
    sub { $exit_status = pt_archiver::main(@args) },
    stderr => 1,
 );
-diag("Exit status: $exit_status") if ($exit_status);
-diag($output);
 
 isnt(
     $exit_status,
@@ -89,7 +87,7 @@ like (
     $output,
     qr/"channel" was not specified/,
     'Message saying channel name must be specified'
-);
+) or diag($output);
 
 push @args, ('--channel', 'sourcechan1');
 

@@ -10,6 +10,7 @@ use strict;
 use warnings FATAL => 'all';
 use English qw(-no_match_vars);
 use Test::More;
+use Data::Dumper;
 
 use PerconaTest;
 use Sandbox;
@@ -54,10 +55,10 @@ like($output, qr/Prompt for a password/, 'It compiles');
 # Double check that we're setup correctly.
 my $row = $replica2_dbh->selectall_arrayref("SHOW ${replica_name} STATUS", {Slice => {}});
 is(
-   $row->[0]->{source_port},
+   $row->[0]->{"${source_name}_port"},
    '12346',
    'replica2 is replica of replica1'
-);
+) or diag(Dumper($row));
 
 $output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname`;
 my $expected = <<EOF;

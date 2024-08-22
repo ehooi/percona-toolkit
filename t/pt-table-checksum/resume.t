@@ -241,7 +241,7 @@ my $second_half = [
    [qw(sakila store 1 2 )],
 ];
 
-$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, ${source_name}_cnt from percona.checksums order by db, tbl");
+$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, source_cnt from percona.checksums order by db, tbl");
 is_deeply(
    $row,
    $first_half,
@@ -253,7 +253,7 @@ $output = output(
       qw(--chunk-time 0)) },
 );
 
-$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, ${source_name}_cnt from percona.checksums order by db, tbl");
+$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, source_cnt from percona.checksums order by db, tbl");
 is_deeply(
    $row,
    [
@@ -306,7 +306,7 @@ is(
 load_data_infile("sakila-done-1k-chunks", "ts='2011-10-15 13:00:57'");
 $source_dbh->do("delete from percona.checksums where ts > '2011-10-15 13:00:38'");
 
-$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, ${source_name}_cnt from percona.checksums order by db, tbl");
+$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, source_cnt from percona.checksums order by db, tbl");
 is_deeply(
    $row,
    [
@@ -332,7 +332,7 @@ $output = output(
       qw(--chunk-time 0)) },
 );
 
-$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, ${source_name}_cnt from percona.checksums order by db, tbl");
+$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, source_cnt from percona.checksums order by db, tbl");
 is_deeply(
    $row,
    [
@@ -378,7 +378,7 @@ is(
 # ############################################################################
 load_data_infile("sakila-done-1k-chunks", "ts='2011-10-15 13:00:57'");
 $source_dbh->do("delete from percona.checksums where ts > '2011-10-15 13:00:50'");
-$source_dbh->do("update percona.checksums set ${source_name}_crc=NULL, ${source_name}_cnt=NULL, ts='2011-11-11 11:11:11' where db='sakila' and tbl='rental' and chunk=12");
+$source_dbh->do("update percona.checksums set source_crc=NULL, source_cnt=NULL, ts='2011-11-11 11:11:11' where db='sakila' and tbl='rental' and chunk=12");
 
 # Checksum table now ends with:
 #    *************************** 49. row ***************************
@@ -413,7 +413,7 @@ $source_dbh->do("update percona.checksums set ${source_name}_crc=NULL, ${source_
 
 my $chunk11 = $source_dbh->selectall_arrayref(q{select * from percona.checksums where db='sakila' and tbl='rental' and chunk=11});
 
-my $chunk12 = $source_dbh->selectall_arrayref(qq{select ${source_name}_crc from percona.checksums where db='sakila' and tbl='rental' and chunk=12});
+my $chunk12 = $source_dbh->selectall_arrayref(qq{select source_crc from percona.checksums where db='sakila' and tbl='rental' and chunk=12});
 is(
    $chunk12->[0]->[0],
    undef,
@@ -426,7 +426,7 @@ $output = output(
    trf => sub { return PerconaTest::normalize_checksum_results(@_) },
 );
 
-$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, ${source_name}_cnt from percona.checksums order by db, tbl");
+$row = $source_dbh->selectall_arrayref("select db, tbl, chunk, source_cnt from percona.checksums order by db, tbl");
 is_deeply(
    $row,
    [
@@ -455,7 +455,7 @@ is_deeply(
    "Chunk 11 not updated"
 );
 
-$chunk12 = $source_dbh->selectall_arrayref(qq{select ${source_name}_crc, ${source_name}_cnt from percona.checksums where db='sakila' and tbl='rental' and chunk=12});
+$chunk12 = $source_dbh->selectall_arrayref(qq{select source_crc, source_cnt from percona.checksums where db='sakila' and tbl='rental' and chunk=12});
 ok(
    defined $chunk12->[0]->[0],
    "Chunk 12 source_crc updated"

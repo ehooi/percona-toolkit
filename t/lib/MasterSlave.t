@@ -88,7 +88,7 @@ PXC_SKIP: {
             source    => 'hosts',
          },
          'get_replicas() from recurse_to_replicas() with a default --recursion-method'
-      );
+      ) or diag(Dumper($slaves->[0]->dsn()));
 
       my ($id) = $slaves->[0]->dbh()->selectrow_array('SELECT @@SERVER_ID');
       is(
@@ -315,15 +315,15 @@ is_deeply(
 # +- 127.0.0.1:slave0
 # |  +- 127.0.0.1:slave1
 # +- 127.0.0.1:slave2
-is($ms->get_replica_status($slaves[0])->{source_port}, $port_for{source}, 'slave 1 port');
-is($ms->get_replica_status($slaves[1])->{source_port}, $port_for{replica0}, 'slave 2 port');
-is($ms->get_replica_status($slaves[2])->{source_port}, $port_for{source}, 'slave 3 port');
+is($ms->get_replica_status($slaves[0])->{"${source_name}_port"}, $port_for{source}, 'slave 1 port');
+is($ms->get_replica_status($slaves[1])->{"${source_name}_port"}, $port_for{replica0}, 'slave 2 port');
+is($ms->get_replica_status($slaves[2])->{"${source_name}_port"}, $port_for{source}, 'slave 3 port');
 
 ok($ms->is_source_of($slaves[0], $slaves[1]), 'slave 1 is slave of slave 0');
 eval {
    $ms->is_source_of($slaves[0], $slaves[2]);
 };
-like($EVAL_ERROR, qr/but the ${source_name}'s port/, 'slave 2 is not slave of slave 0');
+like($EVAL_ERROR, qr/but the source's port/, 'slave 2 is not slave of slave 0') or diag($EVAL_ERROR);
 eval {
    $ms->is_source_of($slaves[2], $slaves[1]);
 };

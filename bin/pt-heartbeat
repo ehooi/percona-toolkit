@@ -383,8 +383,10 @@ sub _find_replicas_by_hosts {
 
    my $vp = VersionParser->new($dbh);
    my $sql = 'SHOW REPLICAS';
+   my $source_name = 'source';
    if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
       $sql = 'SHOW SLAVE HOSTS';
+      $source_name='master';
    }
    
    PTDEBUG && _d($dbh, $sql);
@@ -400,7 +402,7 @@ sub _find_replicas_by_hosts {
             . ( $hash{password} ? ",p=$hash{password}" : '');
          my $dsn           = $dsn_parser->parse($spec, $dsn);
          $dsn->{server_id} = $hash{server_id};
-         $dsn->{source_id} = $hash{source_id};
+         $dsn->{source_id} = $hash{"${source_name}_id"};
          $dsn->{source}    = 'hosts';
          $dsn;
       } @replicas;
@@ -479,9 +481,9 @@ sub is_source_of {
          . "but the source's port is $port";
    }
 
-   if ( !grep { $replica_status->{source_user} eq $_->{user} } @connected ) {
+   if ( !grep { $replica_status->{"${source_name}_user"} eq $_->{user} } @connected ) {
       die "I don't see any replica I/O thread connected with user "
-         . $replica_status->{source_user};
+         . $replica_status->{"${source_name}_user"};
    }
 
    if ( ($replica_status->{replica_io_state} || '')
@@ -524,7 +526,7 @@ sub get_replica_status {
    my $server_version = VersionParser->new($dbh);
    my $replica_name = 'replica';
    if ( $server_version < '8.1' || $server_version->flavor() =~ m/maria/ ) {
-      $replica_name = 'replica';
+      $replica_name = 'slave';
    }
 
    if ( !$self->{not_a_replica}->{$dbh} ) {
@@ -667,7 +669,7 @@ sub stop_replica {
    my $vp = VersionParser->new($dbh);
    my $replica_name = 'replica';
    if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $replica_name = 'replica';
+      $replica_name = 'slave';
    }
    my $sth = $self->{sths}->{$dbh}->{STOP_REPLICA}
          ||= $dbh->prepare("STOP ${replica_name}");
@@ -6105,6 +6107,9 @@ sub main {
    @dbhs = ();
    @sths = ();
 
+   my $relay_source_log_file_col = 'relay_source_log_file';
+   my $exec_source_log_pos_col = 'exec_source_log_pos';
+
    # ########################################################################
    # Get configuration information.
    # ########################################################################
@@ -6311,6 +6316,16 @@ sub main {
    die "Heartbeat table $db_tbl does not have a ts column"
       unless $tbl_struct->{is_col}->{ts};
 
+   if ( $tbl_struct->{is_col}->{exec_master_log_file}
+      && !$tbl_struct->{is_col}->{exec_source_log_file} ) {
+      $exec_source_log_pos_col = 'exec_master_log_file';
+   }
+
+   if ( $tbl_struct->{is_col}->{exec_master_log_pos}
+      && !$tbl_struct->{is_col}->{exec_source_log_pos} ) {
+      $exec_source_log_pos_col = 'exec_master_log_pos';
+   }
+
    my $hires_ts = $tbl_struct->{type_for}->{ts} =~ m/char/i ? 1 : 0;
    PTDEBUG && _d("Hi-res ts:", ($hires_ts ? 'yes' : 'no'));
 
@@ -6429,7 +6444,7 @@ sub main {
       PTDEBUG && _d("Master status columns:", join(', ', @master_status_cols));
 
       my @slave_status_cols  = grep { $tbl_struct->{is_col}->{$_} }
-         ("relay_${source_name}_log_file", "exec_${source_name}_log_pos");
+         ($relay_source_log_file_col, $exec_source_log_pos_col);
       PTDEBUG && _d("Slave status columns:", join(', ', @slave_status_cols));
 
       # Just a shortcut so I don't have to check both arrays when creating
@@ -6486,6 +6501,7 @@ sub main {
             }
             else {
                $sql = 'SHOW SLAVE STATUS';
+               s/source/master/ for @slave_status_cols;
             }
             PTDEBUG && _d($dbh, $sql);
             my $row = $dbh->selectrow_hashref($sql);

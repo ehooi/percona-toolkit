@@ -100,7 +100,7 @@ is(
    "Bug 987393 (empty table): no errors"
 );
 
-my $rows = $source_dbh->selectall_arrayref("SELECT db, tbl, chunk, ${source_name}_crc, ${source_name}_cnt FROM percona.checksums ORDER BY db, tbl, chunk");
+my $rows = $source_dbh->selectall_arrayref("SELECT db, tbl, chunk, source_crc, source_cnt FROM percona.checksums ORDER BY db, tbl, chunk");
 is_deeply(
    $rows,
    [

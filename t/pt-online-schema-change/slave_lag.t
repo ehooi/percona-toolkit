@@ -157,15 +157,15 @@ unlink $filename;
 
 like(
       $output,
-      qr/${replica_name} set to watch has changed/is,
+      qr/Replica set to watch has changed/s,
       "--recursion-method=dsn updates the replica list",
-);
+) or diag($output);
 
 like(
       $output,
-      qr/${replica_name} lag is \d+ seconds on .*  Waiting/is,
+      qr/Replica lag is \d+ seconds on .*  Waiting/s,
       "--recursion-method waits on a replica",
-);
+) or diag($output);
 
 # Repeat the test now using --skip-check-replica-lag
 # Run a full table scan query to ensure the replica is behind the source

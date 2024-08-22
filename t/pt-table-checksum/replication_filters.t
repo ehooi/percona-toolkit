@@ -93,7 +93,7 @@ is(
    PerconaTest::get_source_binlog_pos($source_dbh),
    $pos,
    "Did not checksum with replication filter"
-);
+) or diag($output);
 
 like(
    $output,

@@ -442,7 +442,7 @@ $output = output(
 
 like(
    $output,
-   qr/no ${replica_name}s were found/,
+   qr/no replicas were found/,
    "Warns when no replica are found (bug 1087804)"
 ) or diag($output);
 

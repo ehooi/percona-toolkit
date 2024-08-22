@@ -849,9 +849,9 @@ SKIP: {
 
    like(
       $output,
-      qr/Found 2 replicas.*Successfully altered/si,
+      qr/Found 2 ${replica_name}s.*Successfully altered/si,
       "--recursion-method=dns works"
-   );
+   ) or diag($output);
 
    $source_dbh->do("DROP DATABASE test_recursion_method");
 

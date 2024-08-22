@@ -6953,8 +6953,10 @@ sub _find_replicas_by_hosts {
 
    my $vp = VersionParser->new($dbh);
    my $sql = 'SHOW REPLICAS';
+   my $source_name = 'source';
    if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
       $sql = 'SHOW SLAVE HOSTS';
+      $source_name='master';
    }
    
    PTDEBUG && _d($dbh, $sql);
@@ -6970,7 +6972,7 @@ sub _find_replicas_by_hosts {
             . ( $hash{password} ? ",p=$hash{password}" : '');
          my $dsn           = $dsn_parser->parse($spec, $dsn);
          $dsn->{server_id} = $hash{server_id};
-         $dsn->{source_id} = $hash{source_id};
+         $dsn->{source_id} = $hash{"${source_name}_id"};
          $dsn->{source}    = 'hosts';
          $dsn;
       } @replicas;
@@ -7049,9 +7051,9 @@ sub is_source_of {
          . "but the source's port is $port";
    }
 
-   if ( !grep { $replica_status->{source_user} eq $_->{user} } @connected ) {
+   if ( !grep { $replica_status->{"${source_name}_user"} eq $_->{user} } @connected ) {
       die "I don't see any replica I/O thread connected with user "
-         . $replica_status->{source_user};
+         . $replica_status->{"${source_name}_user"};
    }
 
    if ( ($replica_status->{replica_io_state} || '')
@@ -10349,7 +10351,7 @@ sub main {
 
          # We should not die if replica connected via tunnel or port redirection
          if ( $EVAL_ERROR ) {
-            $EVAL_ERROR =~ m/The ${replica_name} is connected to (\d+) but the ${source_name}'s port is \d+/;
+            $EVAL_ERROR =~ m/The ${replica_name} is connected to (\d+) but the source's port is \d+/;
             if ( !$1 || $1 != $dsns[0]->{P} ) {
                die $EVAL_ERROR;
             }
