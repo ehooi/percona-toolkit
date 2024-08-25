@@ -775,16 +775,21 @@ SKIP: {
       type   => 'source',
    );
    my $replica1_port = $sb->port_for('chan_replica1');
-   
-   $sb->load_file('chan_source1', "sandbox/gtid_on.sql", undef, no_wait => 1);
-   $sb->load_file('chan_source2', "sandbox/gtid_on.sql", undef, no_wait => 1);
-   $sb->load_file('chan_replica1', "sandbox/replica_channels.sql", undef, no_wait => 1);
+
+   if ( $sandbox_version lt '8.1' ) {
+      $sb->load_file('chan_source1', "sandbox/gtid_on-legacy.sql", undef, no_wait => 1);
+      $sb->load_file('chan_source2', "sandbox/gtid_on-legacy.sql", undef, no_wait => 1);
+      $sb->load_file('chan_replica1', "sandbox/replica_channels_t-legacy.sql", undef, no_wait => 1);
+   } else {
+      $sb->load_file('chan_source1', "sandbox/gtid_on.sql", undef, no_wait => 1);
+      $sb->load_file('chan_source2', "sandbox/gtid_on.sql", undef, no_wait => 1);
+      $sb->load_file('chan_replica1', "sandbox/replica_channels_t.sql", undef, no_wait => 1);
+   }
 
    my $replica_cnf = "/tmp/$replica1_port/my.sandbox.cnf";
    my $cmd = "$trunk/bin/pt-stalk --no-stalk --iterations=1 --host=127.0.0.1 --port=$replica1_port --user=msandbox "
            . "--password=msandbox --sleep 0 --run-time=10 --dest $dest --log $log_file --iterations=1  "
            . "--run-time=2 --pid $pid_file --defaults-file=$replica_cnf >$log_file 2>&1";
-   diag ($cmd);
    system($cmd);
    sleep 5;
    PerconaTest::kill_program(pid_file => $pid_file);
@@ -806,14 +811,14 @@ SKIP: {
    my $cmd = "$trunk/bin/pt-stalk --no-stalk --iterations=1 --host=127.0.0.1 --port=$replica1_port --user=msandbox "
            . "--password=msandbox --sleep 0 --run-time=10 --dest $dest --log $log_file --iterations=1  "
            . "--run-time=2  --pid $pid_file --defaults-file=$cnf >$log_file 2>&1";
-   system($cmd);                                                                 
-   sleep 5;                                                                      
-   PerconaTest::kill_program(pid_file => $pid_file);                             
-                                                                                 
-   $output = `cat $dest/*-${replica_name}-status 2>/dev/null`;                             
-                                                                                 
-   like(                                                                     
-      $output,                                                               
+   system($cmd); 
+   sleep 5; 
+   PerconaTest::kill_program(pid_file => $pid_file); 
+ 
+   $output = `cat $dest/*-${replica_name}-status 2>/dev/null`; 
+
+   like(
+      $output,
       qr/SHOW SLAVE STATUS/,                                                 
       "MySQL 5.6 SLAVE STATUS"                                               
    );
