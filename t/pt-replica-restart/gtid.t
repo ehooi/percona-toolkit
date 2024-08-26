@@ -14,7 +14,7 @@ use Data::Dumper;
 
 use PerconaTest;
 use Sandbox;
-require "$trunk/bin/pt-slave-restart";
+require "$trunk/bin/pt-replica-restart";
 
 if ( $sandbox_version lt '5.6' ) {
    plan skip_all => "Requires MySQL 5.6";
@@ -45,7 +45,7 @@ my $replica2_dsn = $sb->dsn_for("replica2");
 
 my $pid_file = "/tmp/pt-replica-restart-test-$PID.pid";
 my $log_file = "/tmp/pt-replica-restart-test-$PID.log";
-my $cmd      = "$trunk/bin/pt-slave-restart --daemonize --run-time 5 --max-sleep 0.25 --pid $pid_file --log $log_file";
+my $cmd      = "$trunk/bin/pt-replica-restart --daemonize --run-time 5 --max-sleep 0.25 --pid $pid_file --log $log_file";
 
 sub start {
    my ( $extra ) = @_;
@@ -56,9 +56,9 @@ sub start {
 
 sub stop() {
    return 1 if !is_running();
-   diag(`$trunk/bin/pt-slave-restart --stop -q >/dev/null 2>&1 &`);
+   diag(`$trunk/bin/pt-replica-restart --stop -q >/dev/null 2>&1 &`);
    wait_until(sub { !-f $pid_file }, 0.3, 2);
-   diag(`rm -f /tmp/pt-slave-restart-sentinel`);
+   diag(`rm -f /tmp/pt-replica-restart-sentinel`);
    return is_running() ? 0 : 1;
 }
 
@@ -112,9 +112,9 @@ wait_repl_broke($replica1_dbh) or die "Failed to break replication";
 my $r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
 like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replica: Replication broke');
 
-# Start pt-slave-restart and wait up to 5s for it to fix replication
+# Start pt-replica-restart and wait up to 5s for it to fix replication
 # (it should take < 1s but tests can be really slow sometimes).
-start("$replica1_dsn") or die "Failed to start pt-slave-restart";
+start("$replica1_dsn") or die "Failed to start pt-replica-restart";
 wait_repl_ok($replica1_dbh);
 
 # Check if replication is fixed.
@@ -125,8 +125,8 @@ like(
    'Event is skipped',
 ) or BAIL_OUT("Replication is broken");
 
-# Stop pt-slave-restart.
-stop() or die "Failed to stop pt-slave-restart";
+# Stop pt-replica-restart.
+stop() or die "Failed to stop pt-replica-restart";
 
 # #############################################################################
 # Test the replica of the source.
@@ -160,7 +160,7 @@ like(
    'Skips event from source on replica2'
 ) or BAIL_OUT("Replication is broken");
 
-stop() or die "Failed to stop pt-slave-restart";
+stop() or die "Failed to stop pt-replica-restart";
 
 # #############################################################################
 # Test skipping 2 events in a row.
@@ -195,7 +195,7 @@ like(
    'Skips multiple events'
 ) or BAIL_OUT("Replication is broken");
 
-stop() or die "Failed to stop pt-slave-restart";
+stop() or die "Failed to stop pt-replica-restart";
 
 # #############################################################################
 # Done.

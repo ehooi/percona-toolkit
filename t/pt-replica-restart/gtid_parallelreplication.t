@@ -13,7 +13,7 @@ use Test::More;
 
 use PerconaTest;
 use Sandbox;
-require "$trunk/bin/pt-slave-restart";
+require "$trunk/bin/pt-replica-restart";
 
 if ( $sandbox_version lt '5.6' ) {
    plan skip_all => 'MySQL Version ' . $sandbox_version 
@@ -42,15 +42,15 @@ elsif ( !$replica2_dbh ) {
 }
 
 # #############################################################################
-# pt-slave-restart should exit!
+# pt-replica-restart should exit!
 # #############################################################################
 # Start an instance
-my $output=`$trunk/bin/pt-slave-restart --run-time=1s -h 127.0.0.1 -P 12346 -u msandbox -p msandbox 2>&1`;
+my $output=`$trunk/bin/pt-replica-restart --run-time=1s -h 127.0.0.1 -P 12346 -u msandbox -p msandbox 2>&1`;
 
 like(
    $output,
    qr/Cannot skip transactions properly.*${replica_name}_parallel_workers/,
-   "pt-slave-restart exits with multiple replication threads"
+   "pt-replica-restart exits with multiple replication threads"
 ) or diag($output);
 
 # #############################################################################

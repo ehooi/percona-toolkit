@@ -13,7 +13,7 @@ use Test::More;
 
 use PerconaTest;
 use Sandbox;
-require "$trunk/bin/pt-slave-restart";
+require "$trunk/bin/pt-replica-restart";
 
 diag('Restarting the sandbox');
 diag(`SAKILA=0 REPLICATION_THREADS=0 GTID=1 $trunk/sandbox/test-env restart`);
@@ -50,9 +50,9 @@ my $r = $replica_dbh->selectrow_hashref("show ${replica_name} status");
 like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'It is busted');
 
 # Start an instance
-diag(`$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --daemonize --pid /tmp/pt-replica-restart.pid --log /tmp/pt-replica-restart.log`);
-my $output = `ps x | grep 'pt-slave-restart \-\-max\-sleep ' | grep -v grep | grep -v pt-slave-restart.t`;
-like($output, qr/pt-slave-restart --max/, 'It lives');
+diag(`$trunk/bin/pt-replica-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --daemonize --pid /tmp/pt-replica-restart.pid --log /tmp/pt-replica-restart.log`);
+my $output = `ps x | grep 'pt-replica-restart \-\-max\-sleep ' | grep -v grep | grep -v pt-replica-restart.t`;
+like($output, qr/pt-replica-restart --max/, 'It lives');
 
 unlike($output, qr/Table 'test.t' doesn't exist'/, 'It is not busted');
 
@@ -64,18 +64,18 @@ $output = `cat /tmp/pt-replica-restart.pid`;
 chomp($output);
 is($output, $pid, 'PID file has correct PID');
 
-diag(`$trunk/bin/pt-slave-restart --stop -q`);
+diag(`$trunk/bin/pt-replica-restart --stop -q`);
 sleep 1;
-$output = `ps -eaf | grep pt-slave-restart | grep -v grep`;
-unlike($output, qr/pt-slave-restart --max/, 'It is dead');
+$output = `ps -eaf | grep pt-replica-restart | grep -v grep`;
+unlike($output, qr/pt-replica-restart --max/, 'It is dead');
 
 diag(`rm -f /tmp/pt-replica-re*`);
 ok(! -f '/tmp/pt-replica-restart.pid', 'PID file removed');
 
 # #############################################################################
-# Issue 118: pt-slave-restart --error-numbers option is broken
+# Issue 118: pt-replica-restart --error-numbers option is broken
 # #############################################################################
-$output = `$trunk/bin/pt-slave-restart --stop --sentinel /tmp/pt-replica-restartup --error-numbers=1205,1317`;
+$output = `$trunk/bin/pt-replica-restart --stop --sentinel /tmp/pt-replica-restartup --error-numbers=1205,1317`;
 like($output, qr{Successfully created file /tmp/pt-replica-restartup}, '--error-numbers works (issue 118)');
 
 diag(`rm -f /tmp/pt-replica-re*`);
@@ -98,7 +98,7 @@ like(
 );
 
 # Start an instance
-$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --error-text "doesn't exist" --run-time 1s 2>&1`;
+$output = `$trunk/bin/pt-replica-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --error-text "doesn't exist" --run-time 1s 2>&1`;
 unlike(
    $output,
    qr/Error does not match/,
@@ -109,7 +109,7 @@ unlike(
 # Issue 391: Add --pid option to all scripts
 # ###########################################################################
 `touch /tmp/pt-script.pid`;
-$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --pid /tmp/pt-script.pid 2>&1`;
+$output = `$trunk/bin/pt-replica-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --pid /tmp/pt-script.pid 2>&1`;
 like(
    $output,
    qr{PID file /tmp/pt-script.pid exists},
@@ -120,7 +120,7 @@ like(
 # #############################################################################
 # Issue 662: Option maxlength does not exist
 # #############################################################################
-my $ret = system("$trunk/bin/pt-slave-restart -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --monitor --stop --max-sleep 1 --run-time 1 >/dev/null 2>&1");
+my $ret = system("$trunk/bin/pt-replica-restart -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --monitor --stop --max-sleep 1 --run-time 1 >/dev/null 2>&1");
 is(
    $ret >> 8,
    0,
@@ -130,7 +130,7 @@ is(
 # #############################################################################
 #  Issue 673: Use of uninitialized value in numeric gt (>)
 # #############################################################################
-$output = `$trunk/bin/pt-slave-restart --monitor  --error-numbers 1205,1317 --quiet -F /tmp/12346/my.sandbox.cnf  --run-time 1 2>&1`;
+$output = `$trunk/bin/pt-replica-restart --monitor  --error-numbers 1205,1317 --quiet -F /tmp/12346/my.sandbox.cnf  --run-time 1 2>&1`;
 is(
    $output,
    '',
