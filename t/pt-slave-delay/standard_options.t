@@ -20,8 +20,8 @@ my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
 my $master_dbh = $sb->get_dbh_for('source');
 my $slave_dbh  = $sb->get_dbh_for('replica1');
 
-if ($sandbox_version ge '5.7') {
-   plan skip_all => 'Use SQL_DELAY';
+if ($sandbox_version ge '8.1') {
+   plan skip_all => 'Tool is not supported. Use SQL_DELAY';
 }
 
 if ( !$master_dbh ) {

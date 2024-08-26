@@ -88,7 +88,7 @@ our $source_status = 'binary log';
 our $source_reset = 'binary logs and gtids';
 our $source_change = 'replication source';
 our $replica_name = 'replica';
-if ( $sandbox_version < '8.1' || ( $ENV{FORK} || "" eq 'mariadb' ) ) {
+if ( $sandbox_version lt '8.1' || ( $ENV{FORK} || "" eq 'mariadb' ) ) {
    $source_name = 'master';
    $source_status = 'master';
    $source_reset = 'master';

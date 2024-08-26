@@ -22,8 +22,8 @@ my $sb  = Sandbox->new(basedir => '/tmp', DSNParser => $dp);
 my $source_dbh = $sb->get_dbh_for('source');
 my $dbh        = $sb->get_dbh_for('replica1');
 
-if ($sandbox_version ge '5.7') {
-   plan skip_all => 'Use SQL_DELAY';
+if ($sandbox_version ge '8.1') {
+   plan skip_all => 'Tool is not supported. Use SQL_DELAY';
 }
 
 if ( !$dbh ) {
@@ -72,7 +72,7 @@ else {
 # Reap the child.
 waitpid ($pid, 0);
 
-$sb->wait_for_slaves;
+$sb->wait_for_replicas;
 
 # Do it all over again, but this time KILL instead of restart.
 $pid = fork();
@@ -92,7 +92,7 @@ if ( $pid ) {
 else {
    # child. Note that we'll kill the parent's 'mysql' connection
    sleep 1;
-   my $c_dbh = $sb->get_dbh_for('slave1');
+   my $c_dbh = $sb->get_dbh_for('replica1');
    my @cxn = @{$c_dbh->selectall_arrayref('show processlist', {Slice => {}})};
    foreach my $c ( @cxn ) {
       # The parent's connection:
