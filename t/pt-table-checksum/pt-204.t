@@ -70,7 +70,7 @@ like(
    stderr => 1,
 );
 
-my $return_code = ($sandbox_version >= '5.7') ? 16 : 0;
+my $return_code = ($sandbox_version ge '5.7') ? 16 : 0;
 
 is(
    $exit_status,

@@ -41,14 +41,14 @@ my $replica_dsn1 = 'h=127.0.0.1,P=12346,u=msandbox,p=msandbox';
 my $replica_dsn2 = 'h=127.0.0.1,P=12347,u=msandbox,p=msandbox';
 my $sample = "t/pt-online-schema-change/samples";
 my ($orig_master_info_repository, $orig_relay_log_info_repository);
-if ( $sandbox_version < '8.4' ) {
+if ( $sandbox_version lt '8.4' ) {
    ($orig_master_info_repository) = $replica_dbh1->selectrow_array(q{SELECT @@master_info_repository});
    ($orig_relay_log_info_repository) = $replica_dbh1->selectrow_array(q{SELECT @@relay_log_info_repository});
 }
 
 $replica_dbh1->do("stop ${replica_name}");
 $replica_dbh1->do("reset ${replica_name} all");
-if ( $sandbox_version < '8.4' ) {
+if ( $sandbox_version lt '8.4' ) {
    $replica_dbh1->do("SET GLOBAL master_info_repository='TABLE'");
    $replica_dbh1->do("SET GLOBAL relay_log_info_repository='TABLE'");
 }
@@ -83,7 +83,7 @@ like(
 $replica_dbh1->do("STOP ${replica_name}");
 $source_dbh->do("RESET ${source_reset}");
 $replica_dbh1->do("RESET ${replica_name} ALL");
-if ( $sandbox_version < '8.4' ) {
+if ( $sandbox_version lt '8.4' ) {
    $replica_dbh1->do("SET GLOBAL master_info_repository='${orig_master_info_repository}'");
    $replica_dbh1->do("SET GLOBAL relay_log_info_repository='${orig_relay_log_info_repository}'");
 }

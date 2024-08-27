@@ -45,7 +45,7 @@ my $replica_dsn2 = 'h=127.0.0.1,P=12347,u=msandbox,p=msandbox';
 
 sub reset_query_cache {
     my @dbhs = @_;
-    return if ($sandbox_version >= '8.0');
+    return if ($sandbox_version ge '8.0');
     foreach my $dbh (@dbhs) {
         $dbh->do('RESET QUERY CACHE');
     }

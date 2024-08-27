@@ -59,7 +59,7 @@ diag(`/tmp/12347/start >/dev/null`);
 
 sub reset_query_cache {
     my @dbhs = @_;
-    return if ($sandbox_version >= '8.0');
+    return if ($sandbox_version ge '8.0');
     foreach my $dbh (@dbhs) {
         $dbh->do('RESET QUERY CACHE');
     }

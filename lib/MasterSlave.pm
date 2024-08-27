@@ -340,7 +340,7 @@ sub _find_replicas_by_hosts {
    my $vp = VersionParser->new($dbh);
    my $sql = 'SHOW REPLICAS';
    my $source_name = 'source';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $sql = 'SHOW SLAVE HOSTS';
       $source_name='master';
    }
@@ -430,7 +430,7 @@ sub is_source_of {
    my $replica_version = VersionParser->new($replica);
    my $source_name = 'source';
    my $source_port = 'source_port';
-   if ( $replica_version < '8.1' || $replica_version->flavor() =~ m/maria/ ) {
+   if ( $replica_version lt '8.1' || $replica_version->flavor() =~ m/maria/ ) {
       $source_name = 'master';
       $source_port = 'master_port';
    }
@@ -488,7 +488,7 @@ sub get_source_dsn {
    my $vp = VersionParser->new($dbh);
    my $source_host = 'source_host';
    my $source_port = 'source_port';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $source_host = 'master_host';
       $source_port = 'master_port';
    }
@@ -504,7 +504,7 @@ sub get_replica_status {
 
    my $server_version = VersionParser->new($dbh);
    my $replica_name = 'replica';
-   if ( $server_version < '8.1' || $server_version->flavor() =~ m/maria/ ) {
+   if ( $server_version lt '8.1' || $server_version->flavor() =~ m/maria/ ) {
       $replica_name = 'slave';
    }
 
@@ -573,7 +573,7 @@ sub get_source_status {
 
    my $vp = VersionParser->new($dbh);
    my $source_name = 'binary log';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $source_name = 'master';
    }
 
@@ -646,7 +646,7 @@ sub wait_for_source {
       }
       my $vp = VersionParser->new($replica_dbh);
       my $source_name = 'source';
-      if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+      if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
          $source_name = 'master';
       }
       my $channel_sql = $vp > '5.6' && $self->{channel} ? ", '$self->{channel}'" : '';
@@ -679,7 +679,7 @@ sub stop_replica {
    my ( $self, $dbh ) = @_;
    my $vp = VersionParser->new($dbh);
    my $replica_name = 'replica';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $replica_name = 'slave';
    }
    my $sth = $self->{sths}->{$dbh}->{STOP_REPLICA}
@@ -695,7 +695,7 @@ sub start_replica {
    my $vp = VersionParser->new($dbh);
    my $source_name = 'source';
    my $replica_name = 'replica';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $source_name = 'master';
       $replica_name = 'slave';
    }
@@ -753,7 +753,7 @@ sub catchup_to_source {
             
          my $vp = VersionParser->new($replica);
          my $replica_name = 'replica';
-         if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+         if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
             $replica_name = 'slave';
          }
 
@@ -805,13 +805,13 @@ sub catchup_to_same_pos {
 
    my $vp1 = VersionParser->new($s1_dbh);
    my $replica1_name = 'replica';
-   if ( $vp1 < '8.1' || $vp1->flavor() =~ m/maria/ ) {
+   if ( $vp1 lt '8.1' || $vp1->flavor() =~ m/maria/ ) {
       $replica1_name = 'slave';
    }
 
    my $vp2 = VersionParser->new($s2_dbh);
    my $replica2_name = 'replica';
-   if ( $vp2 < '8.1' || $vp2->flavor() =~ m/maria/ ) {
+   if ( $vp2 lt '8.1' || $vp2->flavor() =~ m/maria/ ) {
       $replica2_name = 'slave';
    }
 
@@ -837,7 +837,7 @@ sub has_replica_updates {
    
    my $vp = VersionParser->new($dbh);
    my $replica_name = 'replica';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $replica_name = 'slave';
    }
 
@@ -879,7 +879,7 @@ sub get_replica_lag {
    
    my $vp = VersionParser->new($dbh);
    my $source_name = 'source';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $source_name = 'master';
    }
 
@@ -1041,7 +1041,7 @@ sub get_replication_filters {
 
    my $vp = VersionParser->new($dbh);
    my $replica_name = 'replica';
-   if ( $vp < '8.1' || $vp->flavor() =~ m/maria/ ) {
+   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
       $replica_name = 'slave';
    }
 

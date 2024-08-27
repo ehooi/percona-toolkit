@@ -106,7 +106,7 @@ GRANT USAGE ON *.* TO 'bob'@'192.168.1.1';
 GRANT USAGE ON *.* TO 'bob'@'localhost';
 END_OUTPUT_2
 
-my $expected =  $sandbox_version < '5.7' ? $expected_56 : $sandbox_version < '8.0' ? $expected_57 : $sandbox_version < '8.4' ? $expected_80 : $expected_84;
+my $expected =  $sandbox_version lt '5.7' ? $expected_56 : $sandbox_version lt '8.0' ? $expected_57 : $sandbox_version lt '8.4' ? $expected_80 : $expected_84;
 
 is(
    $output,
@@ -144,7 +144,7 @@ $expected_56 = <<'END_OUTPUT_4';
 GRANT USAGE ON *.* TO 'bob'@'192.168.1.1';
 END_OUTPUT_4
 
-$expected =  $sandbox_version < '5.7' ? $expected_56 : $sandbox_version < '8.0' ? $expected_57 : $sandbox_version < '8.4' ? $expected_80 : $expected_84;
+$expected =  $sandbox_version lt '5.7' ? $expected_56 : $sandbox_version lt '8.0' ? $expected_57 : $sandbox_version lt '8.4' ? $expected_80 : $expected_84;
 
 is(
    $output,

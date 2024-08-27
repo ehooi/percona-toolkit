@@ -66,7 +66,7 @@ like(
 );
 
 SKIP: {
-   skip "MySQL 8.0+ doesn't have ALL PRIVILEGES", 1 if ($sandbox_version >= '8.0');
+   skip "MySQL 8.0+ doesn't have ALL PRIVILEGES", 1 if ($sandbox_version ge '8.0');
    like(
       $output,
       qr/^REVOKE ALL PRIVILEGES/m,
@@ -105,7 +105,7 @@ diag(`/tmp/12345/use -u root -e "CREATE USER 'sally'\@'%'"`);
 diag(`/tmp/12345/use -u root -e "GRANT SELECT(DateCreated, PckPrice, PaymentStat, SANumber) ON test.t TO 'sally'\@'%'"`);
 diag(`/tmp/12345/use -u root -e "GRANT SELECT(city_id), INSERT(city) ON sakila.city TO 'sally'\@'%'"`);
 
-my $postfix = $sandbox_version >= '8.4' ? '-84' : $sandbox_version >= '8.0' ? '-80' : $sandbox_version < '5.7' ? '' : '-57';
+my $postfix = $sandbox_version ge '8.4' ? '-84' : $sandbox_version ge '8.0' ? '-80' : $sandbox_version lt '5.7' ? '' : '-57';
 
 # 11
 ok(

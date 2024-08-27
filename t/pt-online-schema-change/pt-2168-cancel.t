@@ -62,7 +62,7 @@ $sb->load_file('source', "$sample/create_dsns.sql");
 
 sub reset_query_cache {
     my @dbhs = @_;
-    return if ($sandbox_version >= '8.0');
+    return if ($sandbox_version ge '8.0');
     foreach my $dbh (@dbhs) {
         $dbh->do('RESET QUERY CACHE');
     }

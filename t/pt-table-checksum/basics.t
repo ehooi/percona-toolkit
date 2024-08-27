@@ -100,7 +100,7 @@ ok(
 # other than to ensure that there's at least one for each table.
 # 2
 $row = $source_dbh->selectrow_arrayref("select count(*) from percona.checksums");
-my $max_chunks = $sandbox_version < '5.7' ? 60 : 100;
+my $max_chunks = $sandbox_version lt '5.7' ? 60 : 100;
 
 ok(
    $row->[0] > 25 && $row->[0] < $max_chunks,
@@ -127,7 +127,7 @@ ok(
 
 $row = $source_dbh->selectrow_arrayref("select count(*) from percona.checksums");
 
-my $max_rows = $sandbox_version >= '8.0' ? 102 : $sandbox_version < '5.7' ? 90 : 100;
+my $max_rows = $sandbox_version ge '8.0' ? 102 : $sandbox_version lt '5.7' ? 90 : 100;
 ok(
    $row->[0] >= 75 && $row->[0] <= $max_rows,
    'Between 75 and 90 chunks on source'
