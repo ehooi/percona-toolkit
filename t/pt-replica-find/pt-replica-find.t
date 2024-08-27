@@ -15,7 +15,7 @@ use Data::Dumper;
 use PerconaTest;
 use Sandbox;
 
-require "$trunk/bin/pt-slave-find";
+require "$trunk/bin/pt-replica-find";
 
 my $dp = new DSNParser(opts=>$dsn_opts);
 my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
@@ -49,7 +49,7 @@ else {
 
 my @args = ('h=127.0.0.1,P=12345,u=msandbox,p=msandbox,s=1');
 
-my $output = `$trunk/bin/pt-slave-find --help`;
+my $output = `$trunk/bin/pt-replica-find --help`;
 like($output, qr/Prompt for a password/, 'It compiles');
 
 # Double check that we're setup correctly.
@@ -60,7 +60,7 @@ is(
    'replica2 is replica of replica1'
 ) or diag(Dumper($row));
 
-$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname`;
+$output = `$trunk/bin/pt-replica-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname`;
 my $expected = <<EOF;
 127.0.0.1:12345
 +- 127.0.0.1:12346
@@ -72,7 +72,7 @@ is($output, $expected, 'Source with replica and replica of replica');
 # Test --resolve-hostname option (we don't know the hostname of the test
 # machine so we settle for any non null string)
 ###############################################################################
-$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --report-format hostname --resolve-address`;
+$output = `$trunk/bin/pt-replica-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --report-format hostname --resolve-address`;
 like (   
    $output,
    qr/127\.0\.0\.1:12345\s+\(\w+\)/s,
@@ -97,7 +97,7 @@ like (
 # Issue 391: Add --pid option to all scripts
 # #########################################################################
 `touch /tmp/mk-script.pid`;
-$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --pid /tmp/mk-script.pid 2>&1`;
+$output = `$trunk/bin/pt-replica-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --pid /tmp/mk-script.pid 2>&1`;
 like(
    $output,
    qr{PID file /tmp/mk-script.pid exists},
@@ -140,7 +140,7 @@ my $replica2_version = VersionParser->new($replica2_dbh);
 is(
    $innodb_versions[0],
    $source_version->innodb_version(),
-   "pt-slave-find gets the right InnoDB version for the source"
+   "pt-replica-find gets the right InnoDB version for the source"
 );
 
 is(
@@ -157,8 +157,8 @@ is(
 
 ok(
    no_diff($result, ($sandbox_version ge '5.1'
-      ? "t/pt-slave-find/samples/summary001.txt"
-      : "t/pt-slave-find/samples/summary001-5.0.txt"), cmd_output => 1, keep_output => 1, update_samples => 1),
+      ? "t/pt-replica-find/samples/summary001.txt"
+      : "t/pt-replica-find/samples/summary001-5.0.txt"), cmd_output => 1, keep_output => 1, update_samples => 1),
    "Summary report format",
 );
 
