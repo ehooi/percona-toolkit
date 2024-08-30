@@ -6933,22 +6933,22 @@ pt-heartbeat - Monitor MySQL replication delay.
 Usage: pt-heartbeat [OPTIONS] [DSN] --update|--monitor|--check|--stop
 
 pt-heartbeat measures replication lag on a MySQL or PostgreSQL server.  You can
-use it to update a master or monitor a replica.  If possible, MySQL connection
-options are read from your .my.cnf file.
+use it to update a replication source or monitor a replica.  If possible, MySQL
+connection options are read from your .my.cnf file.
 
-Start daemonized process to update test.heartbeat table on master:
+Start daemonized process to update test.heartbeat table on replicaiton source:
 
-  pt-heartbeat -D test --update -h master-server --daemonize
+  pt-heartbeat -D test --update -h source-server --daemonize
 
-Monitor replication lag on slave:
+Monitor replication lag on replica:
 
-  pt-heartbeat -D test --monitor -h slave-server
+  pt-heartbeat -D test --monitor -h replica-server
 
-  pt-heartbeat -D test --monitor -h slave-server --dbi-driver Pg
+  pt-heartbeat -D test --monitor -h replica-server --dbi-driver Pg
 
-Check slave lag once and exit (using optional DSN to specify slave host):
+Check replica lag once and exit (using optional DSN to specify replica host):
 
-  pt-heartbeat -D test --check h=slave-server
+  pt-heartbeat -D test --check h=replica-server
 
 =head1 RISKS
 
@@ -6973,23 +6973,23 @@ server.  Before using this tool, please:
 pt-heartbeat is a two-part MySQL and PostgreSQL replication delay monitoring
 system that measures delay by looking at actual replicated data.  This
 avoids reliance on the replication mechanism itself, which is unreliable.  (For
-example, C<SHOW SLAVE STATUS> on MySQL).
+example, C<SHOW REPLICA STATUS> on MySQL).
 
 The first part is an L<"--update"> instance of pt-heartbeat that connects to
-a master and updates a timestamp ("heartbeat record") every L<"--interval">
-seconds.  Since the heartbeat table may contain records from multiple
-masters (see L<"MULTI-SLAVE HIERARCHY">), the server's ID (@@server_id) is
-used to identify records.
+a replicaiton source and updates a timestamp ("heartbeat record") every
+L<"--interval"> seconds.  Since the heartbeat table may contain records from
+multiple replication sources (see L<"MULTI-REPLICA HIERARCHY">), the server's ID
+(@@server_id) is used to identify records.
 
 The second part is a L<"--monitor"> or L<"--check"> instance of pt-heartbeat
-that connects to a slave, examines the replicated heartbeat record from its
-immediate master or the specified L<"--source-server-id">, and computes the
-difference from the current system time.  If replication between the slave and
-the master is delayed or broken, the computed difference will be greater than
+that connects to a replica, examines the replicated heartbeat record from its
+immediate source or the specified L<"--source-server-id">, and computes the
+difference from the current system time.  If replication between the replica and
+the source is delayed or broken, the computed difference will be greater than
 zero and potentially increase if L<"--monitor"> is specified.
 
-You must either manually create the heartbeat table on the master or use
-L<"--create-table">.  See L<"--create-table"> for the proper heartbeat
+You must either manually create the heartbeat table on the replication source or
+use L<"--create-table">.  See L<"--create-table"> for the proper heartbeat
 table structure.  The C<MEMORY> storage engine is suggested, but not
 required of course, for MySQL.
 
@@ -6998,16 +6998,16 @@ row is inserted if it doesn't exist.  This feature can be disabled with the
 L<"--[no]insert-heartbeat-row"> option in case the database user does not
 have INSERT privileges.
 
-pt-heartbeat depends only on the heartbeat record being replicated to the slave,
+pt-heartbeat depends only on the heartbeat record being replicated to the replica,
 so it works regardless of the replication mechanism (built-in replication, a
 system such as Continuent Tungsten, etc).  It works at any depth in the
-replication hierarchy; for example, it will reliably report how far a slave lags
-its master's master's master.  And if replication is stopped, it will continue
-to work and report (accurately!) that the slave is falling further and further
-behind the master.
+replication hierarchy; for example, it will reliably report how far a replica lags
+its source's source's source.  And if replication is stopped, it will continue
+to work and report (accurately!) that the replica is falling further and further
+behind the source.
 
 pt-heartbeat has a maximum resolution of 0.01 second.  The clocks on the
-master and slave servers must be closely synchronized via NTP.  By default,
+source and replica servers must be closely synchronized via NTP.  By default,
 L<"--update"> checks happen on the edge of the second (e.g. 00:01) and
 L<"--monitor"> checks happen halfway between seconds (e.g. 00:01.5).
 As long as the servers' clocks are closely synchronized and replication
@@ -7020,42 +7020,42 @@ not retry if it can't get a connection when it first starts.
 The L<"--dbi-driver"> option lets you use pt-heartbeat to monitor PostgreSQL
 as well.  It is reported to work well with Slony-1 replication.
 
-=head1 MULTI-SLAVE HIERARCHY
+=head1 MULTI-REPLICA HIERARCHY
 
-If the replication hierarchy has multiple slaves which are masters of
-other slaves, like "master -> slave1 -> slave2", L<"--update"> instances
-can be ran on the slaves as well as the master.  The default heartbeat
+If the replication hierarchy has multiple replicas which are sources of
+other replicas, like "source -> replica1 -> replica2", L<"--update"> instances
+can be ran on the replicas as well as the source.  The default heartbeat
 table (see L<"--create-table">) is keyed on the C<server_id> column, so
 each server will update the row where C<server_id=@@server_id>.
 
 For L<"--monitor"> and L<"--check">, if L<"--source-server-id"> is not
-specified, the tool tries to discover and use the slave's immediate master.
-If this fails, or if you want monitor lag from another master, then you can
+specified, the tool tries to discover and use the replica's immediate source.
+If this fails, or if you want monitor lag from another source, then you can
 specify the L<"--source-server-id"> to use.
 
-For example, if the replication hierarchy is "master -> slave1 -> slave2"
+For example, if the replication hierarchy is "source -> replica1 -> replica2"
 with corresponding server IDs 1, 2 and 3, you can:
 
-  pt-heartbeat --daemonize -D test --update -h master
-  pt-heartbeat --daemonize -D test --update -h slave1
+  pt-heartbeat --daemonize -D test --update -h source
+  pt-heartbeat --daemonize -D test --update -h replica1
 
-Then check (or monitor) the replication delay from master to slave2:
+Then check (or monitor) the replication delay from source to replica2:
 
-  pt-heartbeat -D test --source-server-id 1 --check slave2
+  pt-heartbeat -D test --source-server-id 1 --check replica2
 
-Or check the replication delay from slave1 to slave2:
+Or check the replication delay from replica1 to replica2:
 
-  pt-heartbeat -D test --source-server-id 2 --check slave2
+  pt-heartbeat -D test --source-server-id 2 --check replica2
 
-Stopping the L<"--update"> instance one slave1 will not affect the instance
-on master.
+Stopping the L<"--update"> instance one replica1 will not affect the instance
+on the source.
 
-=head1 MASTER AND SLAVE STATUS
+=head1 BINARY LOG (MASTER) AND REPLICA STATUS
 
 The default heartbeat table (see L<"--create-table">) has columns for saving
-information from C<SHOW MASTER STATUS> and C<SHOW SLAVE STATUS>.  These
-columns are optional.  If any are present, their corresponding information
-will be saved.
+information from C<SHOW BINARY LOG STATUS> (C<SHOW MASTER STATUS> before MySQL 8.4)
+and C<SHOW REPLICA STATUS>.  These columns are optional.  If any are present,
+their corresponding information will be saved.
 
 =head1 Percona XtraDB Cluster
 
@@ -7098,9 +7098,9 @@ utf8 layer, and runs SET NAMES after connecting to MySQL.
 
 =item --check
 
-Check slave delay once and exit.  If you also specify L<"--recurse">, the
-tool will try to discover slave's of the given slave and check and print
-their lag, too.  The hostname or IP and port for each slave is printed
+Check replica delay once and exit.  If you also specify L<"--recurse">, the
+tool will try to discover replica's of the given replica and check and print
+their lag, too.  The hostname or IP and port for each replica is printed
 before its delay.  L<"--recurse"> only works with MySQL.
 
 =item --check-read-only
@@ -7125,10 +7125,10 @@ be created with the following MAGIC_create_heartbeat table definition:
   CREATE TABLE heartbeat (
     ts                    varchar(26) NOT NULL,
     server_id             int unsigned NOT NULL PRIMARY KEY,
-    file                  varchar(255) DEFAULT NULL,    -- SHOW MASTER STATUS
-    position              bigint unsigned DEFAULT NULL, -- SHOW MASTER STATUS
-    relay_source_log_file varchar(255) DEFAULT NULL,    -- SHOW SLAVE STATUS
-    exec_source_log_pos   bigint unsigned DEFAULT NULL  -- SHOW SLAVE STATUS
+    file                  varchar(255) DEFAULT NULL,    -- SHOW BINARY LOG STATUS
+    position              bigint unsigned DEFAULT NULL, -- SHOW BINARY LOG STATUS
+    relay_source_log_file varchar(255) DEFAULT NULL,    -- SHOW REPLICA STATUS
+    exec_source_log_pos   bigint unsigned DEFAULT NULL  -- SHOW REPLICA STATUS
   );
 
 The heartbeat table requires at least one row.  If you manually create the
@@ -7141,7 +7141,7 @@ or if using L<"--utc">:
   INSERT INTO heartbeat (ts, server_id) VALUES (UTC_TIMESTAMP(), N);
 
 where C<N> is the server's ID; do not use @@server_id because it will replicate
-and slaves will insert their own server ID instead of the master's server ID.
+and replicas will insert their own server ID instead of the source's server ID.
 
 This is done automatically by L<"--create-table">.
 
@@ -7152,8 +7152,8 @@ A legacy version of the heartbeat table is still supported:
     ts datetime NOT NULL
   );
 
-Legacy tables do not support L<"--update"> instances on each slave
-of a multi-slave hierarchy like "master -> slave1 -> slave2".
+Legacy tables do not support L<"--update"> instances on each replica
+of a multi-replica hierarchy like "source -> replica1 -> replica2".
 To manually insert the one required row into a legacy table:
 
   INSERT INTO heartbeat (id, ts) VALUES (1, NOW());
@@ -7164,7 +7164,7 @@ or if using L<"--utc">:
 
 The tool automatically detects if the heartbeat table is legacy.
 
-See also L<"MULTI-SLAVE HIERARCHY">.
+See also L<"MULTI-REPLICA HIERARCHY">.
 
 =item --create-table-engine
 
@@ -7278,15 +7278,15 @@ Print all output to this file when daemonized.
 
 type: string
 
-Calculate delay from this master server ID for L<"--monitor"> or L<"--check">.
-If not given, pt-heartbeat attempts to connect to the server's master and
+Calculate delay from this source server ID for L<"--monitor"> or L<"--check">.
+If not given, pt-heartbeat attempts to connect to the server's source and
 determine its server id.
 
 =item --monitor
 
-Monitor slave delay continuously.
+Monitor replica delay continuously.
 
-Specifies that pt-heartbeat should check the slave's delay every second and
+Specifies that pt-heartbeat should check the replica's delay every second and
 report to STDOUT (or if L<"--file"> is given, to the file instead).  The output
 is the current delay followed by moving averages over the timeframe given in
 L<"--frames">.  For example,
@@ -7340,11 +7340,11 @@ server is found to be read-only. If unspecified, L<"--interval"> is used.
 
 type: int
 
-Check slaves recursively to this depth in L<"--check"> mode.
+Check replicas recursively to this depth in L<"--check"> mode.
 
-Try to discover slave servers recursively, to the specified depth.  After
+Try to discover replica servers recursively, to the specified depth.  After
 discovering servers, run the check on each one of them and print the hostname
-(if possible), followed by the slave delay.
+(if possible), followed by the replica delay.
 
 This currently works only with MySQL.  See L<"--recursion-method">.
 
@@ -7352,21 +7352,21 @@ This currently works only with MySQL.  See L<"--recursion-method">.
 
 type: array; default: processlist,hosts
 
-Preferred recursion method used to find slaves.
+Preferred recursion method used to find replicas.
 
 Possible methods are:
 
   METHOD       USES
   ===========  ==================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW SLAVE HOSTS
-  none         Do not find slaves
+  hosts        SHOW REPLICA HOSTS
+  none         Do not find replicas
 
-The processlist method is preferred because SHOW SLAVE HOSTS is not reliable.
+The processlist method is preferred because SHOW REPLICA HOSTS is not reliable.
 However, the hosts method is required if the server uses a non-standard
 port (not 3306).  Usually pt-heartbeat does the right thing and finds
-the slaves, but you may give a preferred method and it will be used first.
-If it doesn't find any slaves, the other methods will be tried.
+the replicas, but you may give a preferred method and it will be used first.
+If it doesn't find any replicas, the other methods will be tried.
 
 =item --replace
 
@@ -7389,21 +7389,21 @@ type: string; default: /tmp/pt-heartbeat-sentinel
 
 Exit if this file exists.
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -7430,12 +7430,12 @@ type: float; default: 0.5
 How long to delay checks.
 
 The default is to delay checks one half second.  Since the update happens as
-soon as possible after the beginning of the second on the master, this allows
-one half second of replication delay before reporting that the slave lags the
-master by one second.  If your clocks are not completely accurate or there is
-some other reason you'd like to delay the slave more or less, you can tweak this
-value.  Try setting the C<PTDEBUG> environment variable to see the effect this
-has.
+soon as possible after the beginning of the second on the replication source,
+this allows one half second of replication delay before reporting that the
+replica lags the source by one second.  If your clocks are not completely
+accurate or there is some other reason you'd like to delay the replica  more
+or less, you can tweak this value. Try setting the C<PTDEBUG> environment
+variable to see the effect this has.
 
 =item --socket
 
@@ -7481,7 +7481,7 @@ See L<"--create-table">.
 
 =item --update
 
-Update a master's heartbeat.
+Update a replication source's heartbeat.
 
 =item --user
 

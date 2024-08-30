@@ -189,3 +189,8 @@ On Kubernetes 1.21 - 1.24 warning is printed:
       resourceVersion: ""
 
 This warning is harmless and does not affect data collection. We will remove podsecuritypolicies once everyone upgrade to Kubernetes 1.25 or newer. Before that we advise to ignore this warning.
+
+Authors
+=======
+
+Max Dudin, Andrii Dema, Carlos Salguero, Sveta Smirnova

@@ -96,3 +96,7 @@ Minimum auth role
 This program needs to run some commands like ``getShardMap`` and to be able to run those commands
 it needs to run under a user with the ``clusterAdmin`` or ``root`` built-in roles.
 
+Authors
+=======
+
+Carlos Salguero

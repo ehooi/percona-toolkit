@@ -1,5 +1,7 @@
-pt-pg-summary
-=============
+========================
+:program:`pt-pg-summary`
+========================
+
 **pt-pg-summary** collects information about a PostgreSQL cluster.
 
 Usage
@@ -23,7 +25,7 @@ Parameters
 +--------+---------------------------------+---------+----------------------------------------------------------------------------+
 |        | ``--databases=DATABASES``       |         | Summarize this comma-separated list of databases. All if not specified.    |
 +--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| ``-h`` | ``--host=HOST``                 |         | Host to connect to.                                                        |
+| ``-h`` | ``--host=HOST``                 |         | Host to connect to or local Unix socket for connection                     |
 +--------+---------------------------------+---------+----------------------------------------------------------------------------+
 | ``-W`` | ``--password=PASSWORD``         |         | Password to use when connecting.                                           |
 +--------+---------------------------------+---------+----------------------------------------------------------------------------+
@@ -471,3 +473,8 @@ Minimum auth role
 
 This program needs to run some commands like ``getShardMap`` and to be able to run those commands
 it needs to run under a user with the ``clusterAdmin`` or ``root`` built-in roles.
+
+Authors
+=======
+
+Carlos Salguero

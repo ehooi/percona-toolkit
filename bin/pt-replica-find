@@ -4347,17 +4347,17 @@ if ( !caller ) { exit main(@ARGV); }
 
 =head1 NAME
 
-pt-replica-find - Find and print replication hierarchy tree of MySQL slaves.
+pt-replica-find - Find and print replication hierarchy tree of MySQL replicas.
 
 =head1 SYNOPSIS
 
 Usage: pt-replica-find [OPTIONS] [DSN]
 
-pt-replica-find finds and prints a hierarchy tree of MySQL slaves.
+pt-replica-find finds and prints a hierarchy tree of MySQL replicas.
 
 Examples:
 
-   pt-replica-find --host master-host
+   pt-replica-find --host source-host
 
 =head1 RISKS
 
@@ -4379,16 +4379,16 @@ server.  Before using this tool, please:
 
 =head1 DESCRIPTION
 
-pt-replica-find connects to a MySQL replication master and finds its slaves.
+pt-replica-find connects to a MySQL replication source and finds its replicas.
 Currently the only thing it can do is print a tree-like view of the replication
 hierarchy.
 
-The master host can be specified using one of two methods.  The first method is
+The source host can be specified using one of two methods.  The first method is
 to use the standard connection-related command line options:
 L<"--defaults-file">, L<"--password">, L<"--host">, L<"--port">, L<"--socket">
 or L<"--user">.
 
-The second method to specify the master host is a DSN.  A DSN is a special
+The second method to specify the source host is a DSN.  A DSN is a special
 syntax that can be either just a hostname (like C<server.domain.com> or
 C<1.2.3.4>), or a C<key=value,key=value> string. Keys are a single letter:
 
@@ -4496,34 +4496,34 @@ See L<"--recursion-method">.
 
 type: array; default: processlist,hosts
 
-Preferred recursion method used to find slaves.
+Preferred recursion method used to find replicas.
 
 Possible methods are:
 
   METHOD       USES
   ===========  ==================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW SLAVE HOSTS
-  none         Do not find slaves
+  hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
+  none         Do not find replicas
 
-The processlist method is preferred because SHOW SLAVE HOSTS is not reliable.
+The processlist method is preferred because SHOW REPLICAS is not reliable.
 However, the hosts method is required if the server uses a non-standard
 port (not 3306).  Usually pt-replica-find does the right thing and finds
-the slaves, but you may give a preferred method and it will be used first.
-If it doesn't find any slaves, the other methods will be tried.
+the replicas, but you may give a preferred method and it will be used first.
+If it doesn't find any replicas, the other methods will be tried.
 
 =item --report-format
 
 type: string; default: summary
 
-Set what information about the slaves is printed.  The report format can be
+Set what information about the replicas is printed.  The report format can be
 one of the following:
 
 =over
 
 =item * hostname
 
-Print just the hostname name of the slaves.  It looks like:
+Print just the hostname name of the replicas.  It looks like:
 
   127.0.0.1:12345
   +- 127.0.0.1:12346
@@ -4531,8 +4531,8 @@ Print just the hostname name of the slaves.  It looks like:
 
 =item * summary
 
-Print a summary of each slave's settings.  This report shows more information
-about each slave, like:
+Print a summary of each replica's settings.  This report shows more information
+about each replica, like:
 
   127.0.0.1:12345
   Version         5.1.34-log
@@ -4567,21 +4567,21 @@ Example:
 
 Might delay runtime a few seconds.
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 

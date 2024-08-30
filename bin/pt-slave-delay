@@ -4858,7 +4858,7 @@ pt-slave-delay - Make a MySQL slave server lag behind its master.
 
 This tool is deprecated and will be removed in future releases. It does not support MySQL 8.1 or newer.
 
-Use built-in Delayed Replication instead: https://dev.mysql.com/doc/refman/8.4/en/replication-delayed.html
+Use built-in Delayed Replication instead: https://dev.mysql.com/doc/refman/en/replication-delayed.html
 
 =head1 SYNOPSIS
 

@@ -12835,12 +12835,12 @@ pt-table-checksum - Verify MySQL replication integrity.
 Usage: pt-table-checksum [OPTIONS] [DSN]
 
 pt-table-checksum performs an online replication consistency check by executing
-checksum queries on the master, which produces different results on replicas
-that are inconsistent with the master.  The optional DSN specifies the master
-host.  The tool's L<"EXIT STATUS"> is non-zero if any differences are found,
+checksum queries on the replication source, which produces different results on
+replicas that are inconsistent with the source.  The optional DSN specifies the
+source host.  The tool's L<"EXIT STATUS"> is non-zero if any differences are found,
 or if any warnings or errors occur.
 
-The following command will connect to the replication master on localhost,
+The following command will connect to the replication source on localhost,
 checksum every table, and report the results on every detected replica:
 
    pt-table-checksum
@@ -12932,8 +12932,8 @@ than the desired number of rows. You can configure the sensitivity of this
 safeguard with the L<"--chunk-size-limit"> option. If a table will be
 checksummed in a single chunk because it has a small number of rows, then
 pt-table-checksum additionally verifies that the table isn't oversized on
-replicas.  This avoids the following scenario: a table is empty on the master
-but is very large on a replica, and is checksummed in a single large query,
+replicas.  This avoids the following scenario: a table is empty on the replication
+source but is very large on a replica, and is checksummed in a single large query,
 which causes a very long delay in replication.
 
 There are several other safeguards. For example, pt-table-checksum sets its
@@ -12965,27 +12965,27 @@ exit.  You can resume it as usual afterwards.
 After pt-table-checksum finishes checksumming all of the chunks in a table, it
 pauses and waits for all detected replicas to finish executing the checksum
 queries.  Once that is finished, it checks all of the replicas to see if they
-have the same data as the master, and then prints a line of output with the
+have the same data as the source, and then prints a line of output with the
 results.  You can see a sample of its output later in this documentation.
 
 The tool prints progress indicators during time-consuming operations.  It prints
 a progress indicator as each table is checksummed.  The progress is computed by
 the estimated number of rows in the table. It will also print a progress report
 when it pauses to wait for replication to catch up, and when it is waiting to
-check replicas for differences from the master.  You can make the output less
+check replicas for differences from the source.  You can make the output less
 verbose with the L<"--quiet"> option.
 
 If you wish, you can query the checksum tables manually to get a report of which
-tables and chunks have differences from the master.  The following query will
+tables and chunks have differences from the source.  The following query will
 report every database and table with differences, along with a summary of the
 number of chunks and rows possibly affected:
 
   SELECT db, tbl, SUM(this_cnt) AS total_rows, COUNT(*) AS chunks
   FROM percona.checksums
   WHERE (
-   master_cnt <> this_cnt
-   OR master_crc <> this_crc
-   OR ISNULL(master_crc) <> ISNULL(this_crc))
+   source_cnt <> this_cnt
+   OR source_crc <> this_crc
+   OR ISNULL(source_crc) <> ISNULL(this_crc))
   GROUP BY db, tbl;
 
 The table referenced in that query is the checksum table, where the checksums
@@ -13010,7 +13010,7 @@ collisions. On the other hand, C<CRC32> algorithm is faster and less CPU-intensi
 than C<MD5> and C<SHA1>.
 
 Related reading material:
-Percona Toolkit UDFs: L<https://www.percona.com/doc/percona-server/LATEST/management/udf_percona_toolkit.html>
+Percona Toolkit UDFs: L<https://docs.percona.com/percona-server/8.0/udf-percona-toolkit.html>
 How to avoid hash collisions when using MySQL’s CRC32 function: L<https://www.percona.com/blog/2014/10/13/how-to-avoid-hash-collisions-when-using-mysqls-crc32-function/>
 
 =head1 LIMITATIONS
@@ -13020,9 +13020,9 @@ How to avoid hash collisions when using MySQL’s CRC32 function: L<https://www.
 =item Replicas using row-based replication
 
 pt-table-checksum requires statement-based replication, and it sets
-C<binlog_format=STATEMENT> on the master, but due to a MySQL limitation
+C<binlog_format=STATEMENT> on the source, but due to a MySQL limitation
 replicas do not honor this change.  Therefore, checksums will not replicate
-past any replicas using row-based replication that are masters for
+past any replicas using row-based replication that are sources for
 further replicas.
 
 The tool automatically checks the C<binlog_format> on all servers.
@@ -13032,10 +13032,10 @@ See L<"--[no]check-binlog-format"> .
 
 =item Schema and table differences
 
-The tool presumes that schemas and tables are identical on the master and
+The tool presumes that schemas and tables are identical on the source and
 all replicas.  Replication will break if, for example, a replica does not
-have a schema that exists on the master (and that schema is checksummed),
-or if the structure of a table on a replica is different than on the master.
+have a schema that exists on the source (and that schema is checksummed),
+or if the structure of a table on a replica is different than on the source.
 
 =back
 
@@ -13045,7 +13045,7 @@ pt-table-checksum works with Percona XtraDB Cluster (PXC) 5.5.28-23.7 and newer.
 The number of possible Percona XtraDB Cluster setups is large given that
 it can be used with regular replication as well.  Therefore, only the setups
 listed below are supported and known to work.  Other setups, like cluster
-to cluster, are not support and probably don't work.
+to cluster, are not supported and probably don't work.
 
 Except where noted, all of the following supported setups require that you
 use the C<dsn> method for L<"--recursion-method"> to specify cluster nodes.
@@ -13068,9 +13068,9 @@ supported.  This applies to all supported setups.
 
 =item Single cluster with replicas
 
-Cluster nodes can also be regular masters and replicate to regular replicas.
-However, the tool can only detect diffs on a replica if ran on the replica's
-"master node".  For example, if the cluster setup is,
+Cluster nodes can also be regular replication sources and replicate to regular
+replicas. However, the tool can only detect diffs on a replica if ran on the
+replica's "source node".  For example, if the cluster setup is,
 
    node1 <-> node2 <-> node3
                |         |
@@ -13086,23 +13086,23 @@ cannot be checked (e.g. replica2 when running on node3).
 
 Replicas in this setup are still subject to L<"--[no]check-binlog-format">.
 
-=item Master to single cluster
+=item Replication source to single cluster
 
-It is possible for a regular master to replicate to a cluster, as if the
-cluster were one logical slave, like:
+It is possible for a regular source to replicate to a cluster, as if the
+cluster were one logical replica, like:
 
-   master -> node1 <-> node2 <-> node3
+   source -> node1 <-> node2 <-> node3
 
-The tool supports this setup but only if ran on the master and if all nodes
+The tool supports this setup but only if ran on the source and if all nodes
 in the cluster are consistent with the "direct replica" (node1 in this example)
-of the master.  For example, if all nodes have value "foo" for row 1 but
-the master has value "bar" for the same row, this diff will be detected.
+of the source.  For example, if all nodes have value "foo" for row 1 but
+the source has value "bar" for the same row, this diff will be detected.
 Or if only node1 has this diff, it will also be detected.  But if only node2
 or node3 has this diff, it will not be detected.  Therefore, this setup is
-used to check that the master and the cluster as a whole are consistent.
+used to check that the source and the cluster as a whole are consistent.
 
 In this setup, the tool can automatically detect the "direct replica" (node1)
-when ran on the master, so you do not have to use the C<dsn> method for
+when ran on the source, so you do not have to use the C<dsn> method for
 L<"--recursion-method"> because node1 will represent the entire cluster,
 which is why all other nodes must be consistent with it.
 
@@ -13148,7 +13148,7 @@ progress.
 
 =item DIFFS
 
-The number of chunks that differ from the master on one or more replicas.
+The number of chunks that differ from the source on one or more replicas.
 If C<--no-replicate-check> is specified, this column will always have zeros.
 If L<"--replicate-check-only"> is specified, then only tables with differences
 are printed.
@@ -13211,21 +13211,21 @@ The columns are as follows:
 
 =item TABLE
 
-The database and table that differs from the master.
+The database and table that differs from the source.
 
 =item CHUNK
 
-The chunk number of the table that differs from the master.
+The chunk number of the table that differs from the source.
 
 =item CNT_DIFF
 
 The number of chunk rows on the replica minus the number of chunk rows
-on the master.
+on the source.
 
 =item CRC_DIFF
 
 1 if the CRC of the chunk on the replica is different than the CRC of the
-chunk on the master, else 0.
+chunk on the source, else 0.
 
 =item CHUNK_INDEX
 
@@ -13260,7 +13260,7 @@ with these flags:
    ERROR                     1  A non-fatal error occurred
    ALREADY_RUNNING           2  --pid file exists and the PID is running
    CAUGHT_SIGNAL             4  Caught SIGHUP, SIGINT, SIGPIPE, or SIGTERM
-   NO_SLAVES_FOUND           8  No replicas or cluster nodes were found
+   NO_REPLICAS_FOUND         8  No replicas or cluster nodes were found
    TABLE_DIFF               16  At least one diff was found
    SKIP_CHUNK               32  At least one chunk was skipped
    SKIP_TABLE               64  At least one table was skipped
@@ -13292,12 +13292,13 @@ Prompt for a password when connecting to MySQL.
 type: string
 
 Channel name used when connected to a server using replication channels.
-Suppose you have two masters, master_a at port 12345, master_b at port 1236 and
-a slave connected to both masters using channels chan_master_a and chan_master_b.
-If you want to run pt-table-sync to synchronize the slave against master_a, pt-table-sync
-won't be able to determine what's the correct master since SHOW SLAVE STATUS
-will return 2 rows. In this case, you can use --channel=chan_master_a to specify
-the channel name to use in the SHOW SLAVE STATUS command.
+Suppose you have two replication sources, source_a at port 12345, source_b
+at port 1236 and a replica connected to both sources using channels chan_source_a
+and chan_source_b. If you want to run pt-table-sync to synchronize the replica 
+against source_a, pt-table-checksum won't be able to determine what's the correct
+source since SHOW REPLICA STATUS will return 2 rows. In this case, you can use 
+--channel=chan_source_a to specify the channel name to use in the SHOW REPLICA STATUS
+command.
 
 =item --[no]check-binlog-format
 
@@ -13365,8 +13366,8 @@ binlog_ignore_db and replicate_do_db.  If it finds any such filters,
 it aborts with an error.
 
 If the replicas are configured with any filtering options, you should be careful
-not to checksum any databases or tables that exist on the master and not the
-replicas.  Changes to such tables might normally be skipped on the replicas
+not to checksum any databases or tables that exist on the replication source and
+not the replicas.  Changes to such tables might normally be skipped on the replicas
 because of the filtering options, but the checksum queries modify the contents
 of the table that stores the checksums, not the tables whose data you are
 checksumming.  Therefore, these queries will be executed on the replica, and if
@@ -13386,11 +13387,11 @@ See also L<"REPLICA CHECKS">.
 type: string; group: Throttle
 
 Pause checksumming until this replica's lag is less than L<"--max-lag">.  The
-value is a DSN that inherits properties from the master host and the connection
+value is a DSN that inherits properties from the source host and the connection
 options (L<"--port">, L<"--user">, etc.).  By default, pt-table-checksum
 monitors lag on all connected replicas, but this option limits lag monitoring
 to the specified replica.  This is useful if certain replicas are intentionally
-lagged (with L<pt-slave-delay> for example), in which case you can specify
+lagged (with L<https://dev.mysql.com/doc/refman/en/replication-delayed.html> for example), in which case you can specify
 a normal replica to monitor.
 
 See also L<"REPLICA CHECKS">.
@@ -13399,11 +13400,11 @@ See also L<"REPLICA CHECKS">.
 
 default: yes; group: Safety
 
-Checks that tables on slaves exist and have all the checksum L<"--columns">.
-Tables missing on slaves or not having all the checksum L<"--columns"> can
+Checks that tables on replicas exist and have all the checksum L<"--columns">.
+Tables missing on replicas or not having all the checksum L<"--columns"> can
 cause the tool to break replication when it tries to check for differences.
 Only disable this check if you are aware of the risks and are sure that all
-tables on all slaves exist and are identical to the master.
+tables on all replicas exist and are identical to the source.
 
 =item --chunk-index
 
@@ -13570,6 +13571,8 @@ the table from which the tool resumes won't be emptied.
 To empty the entire replicate table, you must manually execute C<TRUNCATE TABLE>
 before running the tool.
 
+See also -L<"--truncate-replicate-table">.
+
 =item --engines
 
 short form: -e; type: hash; group: Filter
@@ -13682,10 +13685,10 @@ type: time; default: 1s; group: Throttle
 
 Pause checksumming until all replicas' lag is less than this value.  After each
 checksum query (each chunk), pt-table-checksum looks at the replication lag of
-all replicas to which it connects, using Seconds_Behind_Master. If any replica
+all replicas to which it connects, using Seconds_Behind_Source. If any replica
 is lagging more than the value of this option, then pt-table-checksum will sleep
 for L<"--check-interval"> seconds, then check all replicas again.  If you
-specify L<"--check-slave-lag">, then the tool only examines that server for
+specify L<"--check-replica-lag">, then the tool only examines that server for
 lag, not all servers.
 
 The tool waits forever for replicas to stop lagging.  If any replica is
@@ -13754,9 +13757,7 @@ type: string
 
 Perl module file that defines a C<pt_table_checksum_plugin> class.
 A plugin allows you to write a Perl module that can hook into many parts
-of pt-table-checksum.  This requires a good knowledge of Perl and
-Percona Toolkit conventions, which are beyond this scope of this
-documentation.  Please contact Percona if you have questions or need help.
+of pt-table-checksum.
 
 See L<"PLUGIN"> for more information.
 
@@ -13805,7 +13806,7 @@ Preferred recursion method for discovering replicas.  pt-table-checksum
 performs several L<"REPLICA CHECKS"> before and while running.
 
 Although replicas are not required to run pt-table-checksum, the tool
-cannot detect diffs on slaves that it cannot discover.  Therefore,
+cannot detect diffs on replicas that it cannot discover.  Therefore,
 a warning is printed and the L<"EXIT STATUS"> is non-zero if no replicas
 are found and the method is not C<none>.  If this happens, try a different
 recursion method, or use the C<dsn> method to specify the replicas to check.
@@ -13813,14 +13814,14 @@ recursion method, or use the C<dsn> method to specify the replicas to check.
 Possible methods are:
 
   METHOD       USES
-  ===========  =============================================
+  ===========  =================================================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW SLAVE HOSTS
+  hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
   cluster      SHOW STATUS LIKE 'wsrep\_incoming\_addresses'
   dsn=DSN      DSNs from a table
-  none         Do not find slaves
+  none         Do not find replicas
 
-The C<processlist> method is the default, because C<SHOW SLAVE HOSTS> is not
+The C<processlist> method is the default, because C<SHOW REPLICAS> is not
 reliable.  However, if the server uses a non-standard port (not 3306), then
 the C<hosts> method becomes the default because it works better in this case.
 
@@ -13837,7 +13838,7 @@ but this functionality is experimental.
 The C<dsn> method is special: rather than automatically discovering replicas,
 this method specifies a table with replica DSNs.  The tool will only connect
 to these replicas.  This method works best when replicas do not use the same
-MySQL username or password as the master, or when you want to prevent the tool
+MySQL username or password as the source, or when you want to prevent the tool
 from connecting to certain replicas.  The C<dsn> method is specified like:
 C<--recursion-method dsn=h=host,D=percona,t=dsns>.  The specified DSN must
 have D and t parts, or just a database-qualified t part, which specify the
@@ -13854,10 +13855,10 @@ DSNs are ordered by C<id>, but C<id> and C<parent_id> are otherwise ignored.
 The C<dsn> column contains a replica DSN like it would be given on the command
 line, for example: C<"h=replica_host,u=repl_user,p=repl_pass">.
 
-The C<none> method makes the tool ignore all slaves and cluster nodes. This
+The C<none> method makes the tool ignore all replicas and cluster nodes. This
 method is not recommended because it effectively disables the
 L<"REPLICA CHECKS"> and no differences can be found. It is useful, however, if
-you only need to write checksums on the master or a single cluster node. The
+you only need to write checksums on the source or a single cluster node. The
 safer alternative is C<--no-replicate-check>: the tool finds replicas and
 cluster nodes, performs the L<"REPLICA CHECKS">, but does not check for
 differences. See L<"--[no]replicate-check">.
@@ -13897,8 +13898,8 @@ are checksumming InnoDB tables, and you use MyISAM for this table, a deadlock
 will break replication, because the mixture of transactional and
 non-transactional tables in the checksum statements will cause it to be written
 to the binlog even though it had an error.  It will then replay without a
-deadlock on the replicas, and break replication with "different error on master
-and slave."  This is not a problem with pt-table-checksum; it's a problem with
+deadlock on the replicas, and break replication with "different error on source
+and replica."  This is not a problem with pt-table-checksum; it's a problem with
 MySQL replication, and you can read more about it in the MySQL manual.
 
 The replicate table is never checksummed (the tool automatically adds this
@@ -13910,7 +13911,7 @@ default: yes
 
 Check replicas for data differences after finishing each table.  The tool finds
 differences by executing a simple SELECT statement on all detected replicas.
-The query compares the replica's checksum results to the master's checksum
+The query compares the replica's checksum results to the source's checksum
 results.  It reports differences in the DIFFS column of the output.
 
 =item --replicate-check-only
@@ -13929,7 +13930,7 @@ type: int; default: 1
 Retry checksum comparison this many times when a difference is encountered.
 Only when a difference persists after this number of checks is it considered valid.
 Using this option with a value of 2 or more alleviates spurious differences that
-arise when using the --resume option.
+arise when using the L<"--resume"> option.
 
 =item --replicate-database
 
@@ -13972,31 +13973,31 @@ time it is ran.
 
 type: string; default: #
 
-The separator character used for CONCAT_WS().  This character is used to join
+The separator character used for C<CONCAT_WS()>.  This character is used to join
 the values of columns when checksumming.
 
 =item --skip-check-replica-lag
 
 type: DSN; repeatable: yes
 
-DSN to skip when checking slave lag. It can be used multiple times.
-Example: --skip-check-slave-lag h=127.1,P=12345 --skip-check-slave-lag h=127.1,P=12346
+DSN to skip when checking replica lag. It can be used multiple times.
+Example: C<--skip-check-replica-lag h=127.1,P=12345 --skip-check-replica-lag h=127.1,P=12346>
 
 =item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
 =item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --replica-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with L<"--replica-user"> and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -14027,12 +14028,12 @@ Socket file to use for connection.
 
 type: float; default: 1.0
 
-When a master table is marked to be checksummed in only one chunk but a slave
+When a source table is marked to be checksummed in only one chunk but a replica
 table exceeds the maximum accepted size for this, the table is skipped.
 Since number of rows are often rough estimates, many times tables are skipped
 needlessly for very small differences.
 This option provides a max row excess tolerance to prevent this.
-For example a value of 1.2 will tolerate slave tables with up to 20% excess rows.
+For example a value of 1.2 will tolerate replica tables with up to 20% excess rows.
 
 =item --tables
 
@@ -14049,18 +14050,18 @@ Checksum only tables whose names match this Perl regex.
 
 =item --trim
 
-Add TRIM() to VARCHAR columns (helps when comparing 4.1 to >= 5.0).
+Add C<TRIM()> to C<VARCHAR> columns (helps when comparing 4.1 to >= 5.0).
 This is useful when you don't care about the trailing space differences between
 MySQL versions that vary in their handling of trailing spaces. MySQL 5.0 and
-later all retain trailing spaces in VARCHAR, while previous versions would
+later all retain trailing spaces in C<VARCHAR>, while previous versions would
 remove them.  These differences will cause false checksum differences.
 
 =item --truncate-replicate-table
 
 Truncate the replicate table before starting the checksum.
-This parameter differs from L<--empty-replicate-table> which only deletes the rows
+This parameter differs from L<"--[no]empty-replicate-table"> which only deletes the rows
 for the table being checksummed when starting the checksum for that table, while
-L<--truncate-replicate-table> will truncate the replicate table at the beginning of the
+L<"--truncate-replicate-table"> will truncate the replicate table at the beginning of the
 process and thus, all previous checksum information will be losti, even if the process
 stops due to an error.
 
@@ -14121,8 +14122,8 @@ keyword.  You might need to quote the value.  Here is an example:
 =head1 REPLICA CHECKS
 
 By default, pt-table-checksum attempts to find and connect to all replicas
-connected to the master host.  This automated process is called
-"slave recursion" and is controlled by the L<"--recursion-method"> and
+connected to the source host.  This automated process is called
+"replica recursion" and is controlled by the L<"--recursion-method"> and
 L<"--recurse"> options.  The tool performs these checks on all replicas:
 
 =over
@@ -14138,17 +14139,17 @@ disabled by specifying C<--no-check-replication-filters>.
 
 pt-table-checksum checks that the L<"--replicate"> table exists on all
 replicas, else checksumming can break replication when updates to the table
-on the master replicate to a replica that doesn't have the table.  This
+on the source replicate to a replica that doesn't have the table.  This
 check cannot be disabled, and the tool waits forever until the table
 exists on all replicas, printing L<"--progress"> messages while it waits.
 
 =item 3. Single chunk size
 
-If a table can be checksummed in a single chunk on the master,
+If a table can be checksummed in a single chunk on the source,
 pt-table-checksum will check that the table size on all replicas is less than
 L<"--chunk-size"> * L<"--chunk-size-limit">. This prevents a rare problem
-where the table on the master is empty or small, but on a replica it is much
-larger. In this case, the single chunk checksum on the master would overload
+where the table on the source is empty or small, but on a replica it is much
+larger. In this case, the single chunk checksum on the source would overload
 the replica.
 
 Another rare problem occurs when the table size on a replica is close to
@@ -14165,10 +14166,10 @@ This check cannot be disabled.
 =item 4. Lag
 
 After each chunk, pt-table-checksum checks the lag on all replicas, or only
-the replica specified by L<"--check-slave-lag">.  This helps the tool
+the replica specified by L<"--check-replica-lag">.  This helps the tool
 not to overload the replicas with checksum data.  There is no way to
 disable this check, but you can specify a single replica to check with
-L<"--check-slave-lag">, and if that replica is the fastest, it will help
+L<"--check-replica-lag">, and if that replica is the fastest, it will help
 prevent the tool from waiting too long for replica lag to abate.
 
 =item 5. Checksum chunks
@@ -14206,9 +14207,9 @@ to a hook, search for the hook's name in the tool's source code, like:
    # --plugin hook
    if ( $plugin && $plugin->can('init') ) {
       $plugin->init(
-         slaves         => $slaves,
-         slave_lag_cxns => $slave_lag_cxns,
-         repl_table     => $repl_table,
+         replicas         => $replicas,
+         replica_lag_cxns => $replica_lag_cxns,
+         repl_table       => $repl_table,
       );
    }
 

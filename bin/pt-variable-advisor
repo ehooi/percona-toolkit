@@ -3863,7 +3863,12 @@ sub get_rules {
          return 1 if   ($mysql_version == '3'   && $mysql_version < '3.23'  )
                     || ($mysql_version == '4'   && $mysql_version < '4.1.20')
                     || ($mysql_version == '5.0' && $mysql_version < '5.0.37')
-                    || ($mysql_version == '5.1' && $mysql_version < '5.1.30');
+                    || ($mysql_version == '5.1' && $mysql_version < '5.1.30')
+                    || ($mysql_version == '5.5' && $mysql_version < '5.5.8')
+                    || ($mysql_version == '5.6' && $mysql_version < '5.6.10')
+                    || ($mysql_version == '5.7' && $mysql_version < '5.7.9')
+                    || ($mysql_version == '8.0' && $mysql_version < '8.0.11')
+                    ;
          return 0;
       },
    },
@@ -3873,7 +3878,7 @@ sub get_rules {
          my ( %args ) = @_;
          my $mysql_version = $args{mysql_version};
          return 0 unless $mysql_version;
-         return $mysql_version < '5.1' ? 1 : 0;  # 5.1.x
+         return $mysql_version < '8.0' ? 1 : 0;  # 8.x
       },
    },
 };
@@ -5530,10 +5535,6 @@ pt-variable-advisor examines C<SHOW VARIABLES> for bad values and settings
 according to the L<"RULES"> described below.  It reports on variables that
 match the rules, so you can find bad settings in your MySQL server.
 
-At the time of this release, pt-variable-advisor only examines
-C<SHOW VARIABLES>, but other input sources are planned like C<SHOW STATUS>
-and C<SHOW SLAVE STATUS>.
-
 =head1 RULES
 
 These are the rules that pt-variable-advisor will apply to SHOW VARIABLES.
@@ -5875,28 +5876,28 @@ necessary to change it.
 severity: warn
 
 Setting relay_log_space_limit can cause replicas to stop fetching binary logs
-from their master immediately. This could increase the risk that your data will
-be lost if the master crashes. If the replicas have encountered a limit on relay
-log space, then it is possible that the latest transactions exist only on the
-master and no replica has retrieved them.
+from their source immediately. This could increase the risk that your data will
+be lost if the replication source crashes. If the replicas have encountered a limit
+on relay log space, then it is possible that the latest transactions exist only
+on the source and no replica has retrieved them.
 
 =item slave_net_timeout
 
 severity: warn
 
 This variable is set too high.  This is too long to wait before
-noticing that the connection to the master has failed and retrying.  This
-should probably be set to 60 seconds or less.  It is also a good idea to
+noticing that the connection to the replication source has failed and retrying.
+This should probably be set to 60 seconds or less.  It is also a good idea to
 use pt-heartbeat to ensure that the connection does not appear to time out
-when the master is simply idle.
+when the source is simply idle.
 
 =item replica_net_timeout
 
 severity: warn
 
 This variable is set too high.  This is too long to wait before
-noticing that the connection to the source has failed and retrying.  This
-should probably be set to 60 seconds or less.  It is also a good idea to
+noticing that the connection to the replication source has failed and retrying.
+This should probably be set to 60 seconds or less.  It is also a good idea to
 use pt-heartbeat to ensure that the connection does not appear to time out
 when the source is simply idle.
 
@@ -5906,7 +5907,7 @@ severity: crit
 
 You should not set this option.  If replication is having errors,
 you need to find and resolve the cause of that; it is likely that your
-slave's data is different from the master.  You can find out with
+replica's data is different from the source.  You can find out with
 pt-table-checksum.
 
 =item replica_skip_errors
@@ -6060,13 +6061,15 @@ as tmp_table_size.
 
 severity: warn
 
-These are the recommended minimum version for each major release: 3.23, 4.1.20, 5.0.37, 5.1.30.
+These are the recommended minimum version for each major release: 3.23, 4.1.20,
+5.0.37, 5.1.30, 5.5.8, 5.6.10, 5.7.9, 8.0.11. This optiion does not complain
+about Innovation releases.
 
 =item end-of-life mysql version
 
 severity: note
 
-Every release older than 5.1 is now officially end-of-life.
+Every release older than 8.0 is now officially end-of-life.
 
 =back
 
@@ -6294,6 +6297,12 @@ Socket file to use for connection.
 dsn: user; copy: yes
 
 User for login if not current user.
+
+=item * s
+
+dsn: mysql_ssl; copy: yes
+
+Create SSL connection
 
 =back
 

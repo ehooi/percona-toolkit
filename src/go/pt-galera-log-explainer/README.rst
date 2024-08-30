@@ -244,3 +244,8 @@ Known issues
 * Some information will seems missed. Depending on the case, it may be simply unimplemented yet, or it was disabled later because it was found to be unreliable (node index numbers are not reliable for example)
 * Columns width are sometimes too large to be easily readable. This usually happens when printing SST events with long node names
 * When some display corner-cases seems broken (events not deduplicated, ...), it is because of extra hidden internal events.
+
+Authors
+=======
+
+Yoann La Cancellera

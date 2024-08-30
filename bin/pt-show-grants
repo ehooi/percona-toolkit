@@ -2621,6 +2621,12 @@ dsn: user; copy: yes
 
 User for login if not current user.
 
+=item * s
+
+dsn: mysql_ssl; copy: yes
+
+Create SSL connection
+
 =back
 
 =head1 ENVIRONMENT

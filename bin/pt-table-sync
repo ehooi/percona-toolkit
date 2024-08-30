@@ -12296,21 +12296,11 @@ Selects the entire table in one big stream and compares all columns.  Selects
 all columns.  Much less efficient than the other algorithms, but works when
 there is no suitable index for them to use.
 
-=item Future Plans
-
-Possibilities for future algorithms are TempTable (what I originally called
-bottom-up in earlier versions of this tool), DrillDown (what I originally
-called top-down), and GroupByPrefix (similar to how SqlYOG Job Agent works).
-Each algorithm has strengths and weaknesses.  If you'd like to implement your
-favorite technique for finding differences between two sources of data on
-possibly different servers, I'm willing to help.  The algorithms adhere to a
-simple interface that makes it pretty easy to write your own.
-
 =back
 
 =head1 BIDIRECTIONAL SYNCING
 
-Bidirectional syncing is a new, experimental feature.  To make it work
+Bidirectional syncing is an experimental feature.  To make it work
 reliably there are a number of strict limitations:
 
   * only works when syncing one server to other independent servers
@@ -12376,7 +12366,7 @@ These options are:
   * --conflict-comparison
   * --conflict-value
   * --conflict-threshold
-  * --conflict-error">  (optional)
+  * --conflict-error  (optional)
 
 Use L<"--print"> to test this option before L<"--execute">.  The printed
 SQL statements will have comments saying on which host the statement
@@ -12922,7 +12912,7 @@ Possible methods are:
   METHOD       USES
   ===========  ==================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW REPLICAS
+  hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
   none         Do not find replicas
 
 The processlist method is preferred because SHOW REPLICAS is not reliable.
@@ -12951,7 +12941,7 @@ L<pt-table-checksum>.  That is, it contains records of which tables (and ranges
 of values) differ between the source and replica.
 
 For each table and range of values that shows differences between the source and
-replica, C<pt-table-checksum> will sync that table, with the appropriate C<WHERE>
+replica, pt-table-sync will sync that table, with the appropriate C<WHERE>
 clause, to its source.
 
 This automatically sets L<"--wait"> to 60 and causes changes to be made on the
@@ -13141,7 +13131,7 @@ the tables.  The value is the number of seconds to wait before timing out (see
 also L<"--timeout-ok">).  Sets L<"--lock"> to 1 and L<"--[no]transaction"> to 0
 by default.  If you see an error such as the following,
 
-  MASTER_POS_WAIT returned -1
+  SOURCE_POS_WAIT returned -1
 
 It means the timeout was exceeded and you need to increase it.
 

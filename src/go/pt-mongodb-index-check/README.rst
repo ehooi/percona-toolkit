@@ -70,3 +70,7 @@ Available flags
 | –version                   | Show version information               |
 +----------------------------+----------------------------------------+
 
+Authors
+=======
+
+Carlos Salguero

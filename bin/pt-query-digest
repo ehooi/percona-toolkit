@@ -16064,7 +16064,7 @@ MAGIC_create_history_table
    Rows_examined_stddev FLOAT,
    Rows_examined_median FLOAT,
    -- Percona extended slowlog attributes
-   -- http://www.percona.com/docs/wiki/patches:slow_extended
+   -- https://docs.percona.com/percona-server/8.0/slow-extended.html
    Rows_affected_sum             FLOAT,
    Rows_affected_min             FLOAT,
    Rows_affected_max             FLOAT,
@@ -16295,9 +16295,6 @@ How to format and print the query analysis results.  Accepted values are:
 The entire C<report> output can be disabled by specifying C<--no-report>
 (see L<"--[no]report">), and its sections can be disabled or rearranged
 by specifying L<"--report-format">.
-
-C<json> output was introduced in 2.2.1 and is still in development,
-so the data structure may change in future versions.
 
 =item --password
 
@@ -16572,21 +16569,21 @@ queries.  A complete example:
 
   pt-query-digest --sample 2 --no-report --output slowlog slow.log
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -16755,7 +16752,8 @@ traffic without dropping packets on busy servers.  Dropped packets cause
 pt-query-digest to miss the response to a request, then see the response to a
 later request and assign the wrong execution time to the query.  You can change
 the filter to something like the following to help capture a subset of the
-queries.  (See L<http://www.mysqlperformanceblog.com/?p=6092> for details.)
+queries.  (See L<https://www.percona.com/blog/how-to-use-tcpdump-on-very-busy-hosts/>
+for details.)
 
   tcpdump -i any -s 65535 -x -n -q -tttt \
      'port 3306 and tcp[1] & 7 == 2 and tcp[3] & 7 == 2'
@@ -16960,6 +16958,12 @@ The L<"--review"> or L<"--history"> table.
 dsn: user; copy: yes
 
 User for login if not current user.
+
+=item * s
+
+dsn: mysql_ssl; copy: yes
+
+Create SSL connection
 
 =back
 

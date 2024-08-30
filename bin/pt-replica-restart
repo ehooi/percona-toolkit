@@ -5240,9 +5240,9 @@ sub main {
    $o->set('verbose', 0) if $o->get('quiet');
 
    if ( !$o->get('help') ) {
-      if ( $o->get('until-master') ) {
-         if ( $o->get('until-master') !~ m/^[.\w-]+,\d+$/ ) {
-            $o->save_error("Invalid --until-master argument, must be file,pos");
+      if ( $o->get('until-source') ) {
+         if ( $o->get('until-source') !~ m/^[.\w-]+,\d+$/ ) {
+            $o->save_error("Invalid --until-source argument, must be file,pos");
          }
       }
       if ( $o->get('until-relay') ) {
@@ -5442,8 +5442,8 @@ sub watch_server {
    }
 
    my $start_sql = $vp >= '4.0.5' ? "START ${replica_name}" : 'SLAVE START';
-   if ( $o->get('until-master') ) {
-      my ( $file, $pos ) = split(',', $o->get('until-master'));
+   if ( $o->get('until-source') ) {
+      my ( $file, $pos ) = split(',', $o->get('until-source'));
       $start_sql .= " UNTIL ${source_name}_LOG_FILE = '$file', ${source_name}_LOG_POS = $pos";
    }
    elsif ( $o->get('until-relay') ) {
@@ -5614,8 +5614,8 @@ sub watch_server {
          $stat->{last_error}        ||= '';
          $stat->{last_errno}        ||= 0;
 
-         if ( $o->get('until-master') && pos_ge($stat, $source_name, $source_name) ) {
-            die "Replica has advanced past " . $o->get('until-master')
+         if ( $o->get('until-source') && pos_ge($stat, $source_name, $source_name) ) {
+            die "Replica has advanced past " . $o->get('until-source')
                . " on master.\n";
          }
          elsif ( $o->get('until-relay') && pos_ge($stat, 'relay', $source_name) ) {
@@ -5788,7 +5788,7 @@ pt-replica-restart - Watch and restart MySQL replication after errors.
 
 Usage: pt-replica-restart [OPTIONS] [DSN]
 
-pt-replica-restart watches one or more MySQL replication slaves for
+pt-replica-restart watches one or more MySQL replication replicas for
 errors, and tries to restart replication if it stops.
 
 =head1 RISKS
@@ -5811,18 +5811,18 @@ server.  Before using this tool, please:
 
 =head1 DESCRIPTION
 
-pt-replica-restart watches one or more MySQL replication slaves and tries to skip
-statements that cause errors.  It polls slaves intelligently with an
+pt-replica-restart watches one or more MySQL replication replicas and tries to skip
+statements that cause errors.  It polls replicas intelligently with an
 exponentially varying sleep time.  You can specify errors to skip and run the
-slaves until a certain binlog position.
+replicas until a certain binlog position.
 
-Although this tool can help a slave advance past errors, you should not
-rely on it to "fix" replication.  If slave errors occur frequently or
+Although this tool can help a replica advance past errors, you should not
+rely on it to "fix" replication.  If replica errors occur frequently or
 unexpectedly, you should identify and fix the root cause.
 
 =head1 OUTPUT
 
-pt-replica-restart prints a line every time it sees the slave has an error.
+pt-replica-restart prints a line every time it sees the replica has an error.
 By default this line is: a timestamp, connection information, relay_log_file,
 relay_log_pos, and last_errno.
 You can add more information using the L<"--verbose"> option.
@@ -5830,7 +5830,7 @@ You can suppress all output using the L<"--quiet"> option.
 
 =head1 SLEEP
 
-pt-replica-restart sleeps intelligently between polling the slave.  The current
+pt-replica-restart sleeps intelligently between polling the replica.  The current
 sleep time varies.
 
 =over
@@ -5870,15 +5870,15 @@ introduced in MySQL 5.6.5.  It's important to keep in mind that:
 =item *
 
 pt-replica-restart will not skip transactions when multiple replication threads
-are being used (slave_parallel_workers > 0).  pt-replica-restart does not know
-what the GTID event is of the failed transaction of a specific slave thread.
+are being used (replica_parallel_workers > 0).  pt-replica-restart does not know
+what the GTID event is of the failed transaction of a specific replica thread.
 
 =item *
 
-The default behavior is to skip the next transaction from the slave's master.
+The default behavior is to skip the next transaction from the replica's source.
 Writes can originate on different servers, each with their own UUID.
 
-See L<"--master-uuid">.
+See L<"--source-uuid">.
 
 =back
 
@@ -5892,7 +5892,7 @@ servers to monitor.
 =head1 COMPATIBILITY
 
 pt-replica-restart should work on many versions of MySQL.  Lettercase of many
-output columns from SHOW SLAVE STATUS has changed over time, so it treats them
+output columns from SHOW REPLICA STATUS has changed over time, so it treats them
 all as lowercase.
 
 =head1 OPTIONS
@@ -5904,8 +5904,8 @@ L<"SYNOPSIS"> and usage information for details.
 
 =item --always
 
-Start slaves even when there is no error.  With this option enabled,
-pt-replica-restart will not let you stop the slave manually if you want to!
+Start replicas even when there is no error.  With this option enabled,
+pt-replica-restart will not let you stop the replica manually if you want to!
 
 =item --ask-pass
 
@@ -5925,14 +5925,14 @@ connecting to MySQL.
 
 default: yes
 
-Check the last relay log file and position before checking for slave errors.
+Check the last relay log file and position before checking for replica errors.
 
 By default pt-replica-restart will not doing anything (it will just sleep)
 if neither the relay log file nor the relay log position have changed since
 the last check.  This prevents infinite loops (i.e. restarting the same
 error in the same relay log file at the same relay log position).
 
-For certain slave errors, however, this check needs to be disabled by
+For certain replica errors, however, this check needs to be disabled by
 specifying C<--no-check-relay-log>.  Do not do this unless you know what
 you are doing!
 
@@ -5977,7 +5977,7 @@ Only restart this comma-separated list of errors.  Makes pt-replica-restart only
 try to restart if the error number is in this comma-separated list of errors.
 If it sees an error not in the list, it will exit.
 
-The error number is in the C<last_errno> column of C<SHOW SLAVE STATUS>.
+The error number is in the C<last_errno> column of C<SHOW REPLICA STATUS>.
 
 =item --error-text
 
@@ -5985,10 +5985,10 @@ type: string
 
 Only restart errors that match this pattern.  A Perl regular expression against
 which the error text, if any, is matched.  If the error text exists and matches,
-pt-replica-restart will try to restart the slave.  If it exists but doesn't match,
+pt-replica-restart will try to restart the replica.  If it exists but doesn't match,
 pt-replica-restart will exit.
 
-The error text is in the C<last_error> column of C<SHOW SLAVE STATUS>.
+The error text is in the C<last_error> column of C<SHOW REPLICA STATUS>.
 
 =item --help
 
@@ -6012,7 +6012,7 @@ type: float; default: 64
 
 Maximum sleep seconds.
 
-The maximum time pt-replica-restart will sleep before polling the slave again.
+The maximum time pt-replica-restart will sleep before polling the replica again.
 This is also the time that pt-replica-restart will wait for all other running
 instances to quit if both L<"--stop"> and L<"--monitor"> are specified.
 
@@ -6022,12 +6022,12 @@ See L<"SLEEP">.
 
 type: float; default: 0.015625
 
-The minimum time pt-replica-restart will sleep before polling the slave again.
+The minimum time pt-replica-restart will sleep before polling the replica again.
 See L<"SLEEP">.
 
 =item --monitor
 
-Whether to monitor the slave (default).  Unless you specify --monitor
+Whether to monitor the replica (default).  Unless you specify --monitor
 explicitly, L<"--stop"> will disable it.
 
 =item --password
@@ -6063,19 +6063,19 @@ Suppresses normal output (disables L<"--verbose">).
 
 type: int; default: 0
 
-Watch slaves of the specified server, up to the specified number of servers deep
-in the hierarchy.  The default depth of 0 means "just watch the slave
+Watch replicas of the specified server, up to the specified number of servers deep
+in the hierarchy.  The default depth of 0 means "just watch the replica
 specified."
 
 pt-replica-restart examines C<SHOW PROCESSLIST> and tries to determine which
-connections are from slaves, then connect to them.  See L<"--recursion-method">.
+connections are from replicas, then connect to them.  See L<"--recursion-method">.
 
-Recursion works by finding all slaves when the program starts, then watching
-them.  If there is more than one slave, C<pt-replica-restart> uses C<fork()> to
+Recursion works by finding all replicas when the program starts, then watching
+them.  If there is more than one replica, C<pt-replica-restart> uses C<fork()> to
 monitor them.
 
-This also works if you have configured your slaves to show up in C<SHOW SLAVE
-HOSTS>.  The minimal configuration for this is the C<report_host> parameter, but
+This also works if you have configured your replicas to show up in C<SHOW REPLICAS>.
+The minimal configuration for this is the C<report_host> parameter, but
 there are other "report" parameters as well for the port, username, and
 password.
 
@@ -6083,21 +6083,21 @@ password.
 
 type: array; default: processlist,hosts
 
-Preferred recursion method used to find slaves.
+Preferred recursion method used to find replicas.
 
 Possible methods are:
 
   METHOD       USES
   ===========  ==================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW SLAVE HOSTS
-  none         Do not find slaves
+  hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
+  none         Do not find replicas
 
-The processlist method is preferred because SHOW SLAVE HOSTS is not reliable.
+The processlist method is preferred because SHOW REPLCIAS is not reliable.
 However, the hosts method is required if the server uses a non-standard
 port (not 3306).  Usually pt-replica-restart does the right thing and finds
-the slaves, but you may give a preferred method and it will be used first.
-If it doesn't find any slaves, the other methods will be tried.
+the replicas, but you may give a preferred method and it will be used first.
+If it doesn't find any replicas, the other methods will be tried.
 
 =item --run-time
 
@@ -6113,21 +6113,21 @@ type: string; default: /tmp/pt-replica-restart-sentinel
 
 Exit if this file exists.
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -6151,7 +6151,7 @@ The tool prints a warning and continues if a variable cannot be set.
 
 type: int; default: 1
 
-Number of statements to skip when restarting the slave.
+Number of statements to skip when restarting the replica.
 
 =item --source-uuid
 
@@ -6161,15 +6161,15 @@ When using GTID, an empty transaction should be created in order to skip it.
 If writes are coming from different nodes in the replication tree above, it is
 not possible to know which event from which UUID to skip.
 
-By default, transactions from the slave's master (C<'Master_UUID'> from
-C<SHOW SLAVE STATUS>) are skipped.
+By default, transactions from the replica's source (C<'Source_UUID'> from
+C<SHOW REPLICA STATUS>) are skipped.
 
 For example, with
 
-  master1 -> slave1 -> slave2
+  source1 -> replica1 -> replica2
 
-When skipping events on slave2 that were written to master1, you must specify
-the UUID of master1, else the tool will use the UUID of slave1 by default.
+When skipping events on replica2 that were written to source1, you must specify
+the UUID of source1, else the tool will use the UUID of replica1 by default.
 
 See L<"GLOBAL TRANSACTION IDS">.
 
@@ -6177,7 +6177,7 @@ See L<"GLOBAL TRANSACTION IDS">.
 
 type: int; default: 1
 
-Initial sleep seconds between checking the slave.
+Initial sleep seconds between checking the replica.
 
 See L<"SLEEP">.
 
@@ -6212,27 +6212,27 @@ same C<cron> job).
 
 See also L<"--sentinel">.
 
-=item --until-master
+=item --until-source
 
 type: string
 
-Run until this master log file and position.  Start the slave, and retry if it
-fails, until it reaches the given replication coordinates.  The coordinates are
-the logfile and position on the master, given by relay_master_log_file,
-exec_master_log_pos.  The argument must be in the format "file,pos".  Separate
+Run until this source binary log file and position.  Start the replica, and retry
+if it fails, until it reaches the given replication coordinates.  The coordinates
+are the logfile and position on the source, given by relay_source_log_file,
+exec_source_log_pos.  The argument must be in the format "file,pos".  Separate
 the filename and position with a single comma and no space.
 
-This will also cause an UNTIL clause to be given to START SLAVE.
+This will also cause an UNTIL clause to be given to START REPLICA.
 
-After reaching this point, the slave should be stopped and pt-replica-restart
+After reaching this point, the replica should be stopped and pt-replica-restart
 will exit.
 
 =item --until-relay
 
 type: string
 
-Run until this relay log file and position.  Like L<"--until-master">, but in
-the slave's relay logs instead.  The coordinates are given by relay_log_file,
+Run until this relay log file and position.  Like L<"--until-source">, but in
+the replica's relay logs instead.  The coordinates are given by relay_log_file,
 relay_log_pos.
 
 =item --user
@@ -6345,6 +6345,12 @@ Socket file to use for connection.
 dsn: user; copy: yes
 
 User for login if not current user.
+
+=item * s
+
+dsn: mysql_ssl; copy: yes
+
+Create SSL connection
 
 =back
 

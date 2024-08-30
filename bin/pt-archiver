@@ -7519,7 +7519,7 @@ sub do_with_retries {
 
 # Formats a row the same way SELECT INTO OUTFILE does by default.  This is
 # described in the LOAD DATA INFILE section of the MySQL manual,
-# http://dev.mysql.com/doc/refman/5.0/en/load-data.html
+# https://dev.mysql.com/doc/refman/8.4/en/load-data-local-security.html
 sub escape {
    my ($row, $fields_separated_by, $optionally_enclosed_by) = @_;
    $fields_separated_by ||= "\t";
@@ -7627,7 +7627,7 @@ server.  Before using this tool, please:
 
 =head1 DESCRIPTION
 
-pt-archiver is the tool I use to archive tables as described in
+pt-archiver is the tool to archive tables as described in
 L<https://web.archive.org/web/20071014031743/http://www.xaprb.com/blog/2006/05/02/how-to-write-efficient-archiving-and-purging-jobs-in-sql>.  The goal is a low-impact, forward-only
 job to nibble old data out of the table without impacting OLTP queries much.
 You can insert the data into another table, which need not be on the same
@@ -7687,7 +7687,7 @@ included.  The tool does not check for this!
 =item Non-cluster options
 
 Certain options may or may not work.  For example, if a cluster node
-is not also a slave, then L<"--check-replica-lag"> does not work.  And since PXC
+is not also a replica, then L<"--check-replica-lag"> does not work.  And since PXC
 tables are usually InnoDB, but InnoDB doesn't support C<INSERT DELAYED>, then
 L<"--delayed-insert"> does not work.  Other options may also not work, but
 the tool does not check them, therefore you should test archiving on a test
@@ -7846,12 +7846,12 @@ for the C<L> DSN option.
 type: string
 
 Channel name used when connected to a server using replication channels.
-Suppose you have two masters, master_a at port 12345, master_b at port 1236 and
-a slave connected to both masters using channels chan_master_a and chan_master_b.
-If you want to run pt-archiver to synchronize the slave against master_a, pt-archiver
-won't be able to determine what's the correct master since SHOW SLAVE STATUS
-will return 2 rows. In this case, you can use --channel=chan_master_a to specify
-the channel name to use in the SHOW SLAVE STATUS command.
+Suppose you have two sources, source_a at port 12345, source_b at port 1236 and
+a replica connected to both sources using channels chan_source_a and chan_source_b.
+If you want to run pt-archiver to synchronize the replica against source_a, pt-archiver
+won't be able to determine what's the correct source since SHOW REPLICA STATUS
+will return 2 rows. In this case, you can use --channel=chan_source_a to specify
+the channel name to use in the SHOW REPLICA STATUS command.
 
 =item --charset
 
@@ -7896,15 +7896,15 @@ To disable this check, specify --no-check-columns.
 type: time; default: 1s
 
 If L<"--check-replica-lag"> is given, this defines how long the tool pauses each
- time it discovers that a slave is lagging.
+ time it discovers that a replica is lagging.
  This check is performed every 100 rows.
 
 =item --check-replica-lag
 
 type: string; repeatable: yes
 
-Pause archiving until the specified DSN's slave lag is less than L<"--max-lag">.
-This option can be specified multiple times for checking more than one slave.
+Pause archiving until the specified DSN's replica lag is less than L<"--max-lag">.
+This option can be specified multiple times for checking more than one replica.
 
 =item --columns
 
@@ -8107,13 +8107,13 @@ This option is available for PXC versions 5.6 or higher.
 
 type: time; default: 1s
 
-Pause archiving if the slave given by L<"--check-replica-lag"> lags.
+Pause archiving if the replica given by L<"--check-replica-lag"> lags.
 
-This option causes pt-archiver to look at the slave every time it's about
-to fetch another row.  If the slave's lag is greater than the option's value,
-or if the slave isn't running (so its lag is NULL), pt-archiver sleeps
+This option causes pt-archiver to look at the replica every time it's about
+to fetch another row.  If the replica's lag is greater than the option's value,
+or if the replica isn't running (so its lag is NULL), pt-archiver sleeps
 for L<"--check-interval"> seconds and then looks at the lag again.  It repeats
-until the slave is caught up, then proceeds to fetch and archive the row.
+until the replica is caught up, then proceeds to fetch and archive the row.
 
 This option may eliminate the need for L<"--sleep"> or L<"--sleep-coef">.
 
@@ -8292,8 +8292,8 @@ server.  However, pt-archiver implements simple distributed transactions in
 code, so commits and rollbacks should happen as desired across the two
 connections.
 
-At this time I have not written any code to handle errors with transactional
-storage engines other than InnoDB.  Request that feature if you need it.
+At this time the tool does not handle errors with transactional storage engines
+other than InnoDB.  Request that feature if you need it.
 
 =item --run-time
 
@@ -8329,21 +8329,21 @@ stop archiving and exit.  The default is /tmp/pt-archiver-sentinel.  You
 might find this handy to stop cron jobs gracefully if necessary.  See also
 L<"--stop">.
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -8441,12 +8441,12 @@ discussion of how they interact with ascending indexes.
 The 'a' and 'b' options allow you to control how statements flow through the
 binary log.  If you specify the 'b' option, binary logging will be disabled on
 the specified connection.  If you specify the 'a' option, the connection will
-C<USE> the specified database, which you can use to prevent slaves from
+C<USE> the specified database, which you can use to prevent replicas from
 executing the binary log events with C<--replicate-ignore-db> options.  These
 two options can be used as different methods to achieve the same goal: archive
-data off the master, but leave it on the slave.  For example, you can run a
-purge job on the master and prevent it from happening on the slave using your
-method of choice.
+data off the replication source, but leave it on the replica.  For example, you
+can run a purge job on the replication source and prevent it from happening on the
+replica using your method of choice.
 
 B<WARNING>: Using a default options file (F) DSN option that defines a
 socket for L<"--source"> causes pt-archiver to connect to L<"--dest"> using
@@ -8521,9 +8521,9 @@ server, which for example is doing heavy OLTP work, you need to choose a good
 balance between transaction size and commit overhead.  Larger transactions
 create the possibility of more lock contention and deadlocks, but smaller
 transactions cause more frequent commit overhead, which can be significant.  To
-give an idea, on a small test set I worked with while writing pt-archiver, a
+give an idea, on a small test set worked with while writing pt-archiver, a
 value of 500 caused archiving to take about 2 seconds per 1000 rows on an
-otherwise quiet MySQL instance on my desktop machine, archiving to disk and to
+otherwise quiet MySQL instance on a desktop machine, archiving to disk and to
 another table.  Disabling transactions with a value of zero, which turns on
 autocommit, dropped performance to 38 seconds per thousand rows.
 
@@ -8669,7 +8669,7 @@ lead to weird situations, like the server allowing LOCAL INFILE, but
 the client throwing exceptions if it's used.
 
 However, as long as the server allows LOAD DATA, clients can easily
-re-enable it; See L<https://dev.mysql.com/doc/refman/5.0/en/load-data-local.html>
+re-enable it; See L<https://dev.mysql.com/doc/refman/en/load-data-local-security.html>
 and L<http://search.cpan.org/~capttofu/DBD-mysql/lib/DBD/mysql.pm>.
 This option does exactly that.
 

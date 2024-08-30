@@ -12764,7 +12764,7 @@ You must specify C<--alter "DROP FOREIGN KEY _fk_foo">.
 =item *
 
 The tool does not use C<LOCK IN SHARE MODE> with MySQL 5.0 because it can
-cause a slave error which breaks replication:
+cause a replica error which breaks replication:
 
    Query caused different errors on master and slave. Error on master:
    'Deadlock found when trying to get lock; try restarting transaction' (1213),
@@ -12896,12 +12896,10 @@ See L<"--history"> and L<"--resume">.
 type: string
 
 Channel name used when connected to a server using replication channels.
-Suppose you have two masters, master_a at port 12345, master_b at port 1236 and
-a slave connected to both masters using channels chan_master_a and chan_master_b.
-If you want to run pt-table-sync to synchronize the slave against master_a, pt-table-sync
-won't be able to determine what's the correct master since SHOW SLAVE STATUS
-will return 2 rows. In this case, you can use --channel=chan_master_a to specify
-the channel name to use in the SHOW SLAVE STATUS command.
+Suppose you have two replication sources, source_a at port 12345, source_b at port 1236 and
+a replica connected to both sources using channels chan_source_a and chan_source_b.
+You can use --channel=chan_source_a to specify the channel name to use in the 
+SHOW REPLICA STATUS command that pt-online-schema-change uses to calculate replication lag.
 
 =item --charset
 
@@ -12994,8 +12992,8 @@ server options that filter replication, such as binlog_ignore_db and
 replicate_do_db.  If it finds any such filters, it aborts with an error.
 
 If the replicas are configured with any filtering options, you should be careful
-not to modify any databases or tables that exist on the master and not the
-replicas, because it could cause replication to fail.  For more information on
+not to modify any databases or tables that exist on the replication source and not
+the replicas, because it could cause replication to fail.  For more information on
 replication rules, see L<http://dev.mysql.com/doc/en/replication-rules.html>.
 
 =item --check-replica-lag
@@ -13297,7 +13295,7 @@ type: time; default: 1s
 
 Pause the data copy until all replicas' lag is less than this value.  After each
 data-copy query (each chunk), the tool looks at the replication lag of
-all replicas to which it connects, using Seconds_Behind_Master. If any replica
+all replicas to which it connects, using Seconds_Behind_Source. If any replica
 is lagging more than the value of this option, then the tool will sleep
 for L<"--check-interval"> seconds, then check all replicas again.  If you
 specify L<"--check-replica-lag">, then the tool only examines that server for
@@ -13445,9 +13443,7 @@ type: string
 
 Perl module file that defines a C<pt_online_schema_change_plugin> class.
 A plugin allows you to write a Perl module that can hook into many parts
-of pt-online-schema-change.  This requires a good knowledge of Perl and
-Percona Toolkit conventions, which are beyond this scope of this
-documentation.  Please contact Percona if you have questions or need help.
+of pt-online-schema-change.
 
 See L<"PLUGIN"> for more information.
 
@@ -13495,11 +13491,11 @@ Preferred recursion method for discovering replicas.  Possible methods are:
   METHOD       USES
   ===========  ==================
   processlist  SHOW PROCESSLIST
-  hosts        SHOW SLAVE HOSTS
+  hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
   dsn=DSN      DSNs from a table
-  none         Do not find slaves
+  none         Do not find replicas
 
-The processlist method is the default, because SHOW SLAVE HOSTS is not
+The processlist method is the default, because SHOW REPLICAS is not
 reliable.  However, the hosts method can work better if the server uses a
 non-standard port (not 3306).  The tool usually does the right thing and
 finds all replicas, but you may give a preferred method and it will be used
@@ -13547,7 +13543,7 @@ Resume altering table from the last completed chunk. If the tool stops before it
 copying rows, this option makes copying resume from the last chunk copied.
 
 The option accepts ID of the failed job. This ID is printed when pt-online-schema-change
-is running with option L<i"--history"> and stored in the L<"--history-table">.
+is running with option L<"--history"> and stored in the L<"--history-table">.
 
 Warning! To use this option previous, failed, run of pt-online-schema-change should use options
 L<"--history">, L<"--nodrop-new-table">, and L<"--nodrop-triggers">. Otherwise,
@@ -13934,8 +13930,8 @@ Here's a plugin file template for all hooks:
 
    1;
 
-Notice that C<get_slave_lag> must return a function reference;
-ideally one that returns actual slave lag, not simply zero like in the example.
+Notice that C<get_replica_lag> must return a function reference;
+ideally one that returns actual replica lag, not simply zero like in the example.
 
 Here's an example that actually does something:
 
@@ -14091,7 +14087,7 @@ This tool works only on MySQL 5.0.2 and newer versions, because earlier versions
 do not support triggers. Also a number of permissions should be set on MySQL
 to make pt-online-schema-change operate as expected. PROCESS, SUPER, REPLICATION SLAVE
 global privileges, as well as SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER,
-and TRIGGER table privileges should be granted on server. Slave needs only
+and TRIGGER table privileges should be granted on server. Replica needs only
 REPLICATION SLAVE and REPLICATION CLIENT privileges.
 
 =head1 BUGS

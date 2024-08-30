@@ -7876,9 +7876,9 @@ pt-kill - Kill MySQL queries that match certain criteria.
 Usage: pt-kill [OPTIONS] [DSN]
 
 pt-kill kills MySQL connections.  pt-kill connects to MySQL and gets queries
-from SHOW PROCESSLIST if no FILE is given.  Else, it reads queries from one
-or more FILE which contains the output of SHOW PROCESSLIST.  If FILE is -,
-pt-kill reads from STDIN.
+from SHOW PROCESSLIST unless option L<"--test-matching"> is given.  Else, it
+reads queries from one or more files which contains the output of SHOW PROCESSLIST.
+If file is -, pt-kill reads from STDIN.
 
 Kill queries running longer than 60s:
 
@@ -7988,8 +7988,8 @@ For example, using:
 
 will kill all queries having busy-time > 114 C<OR> where the command is C<Query> or C<Execute>
 
-If you want to kill only the queries where C<busy-time > 114> C<AND> the command is Query or
-Execute, you need to use L<"--kill-busy-commands>:
+If you want to kill only the queries where C<busy-time> is greater than 114 and the
+command is Query or Execute, you need to use L<"--kill-busy-commands">:
 
   --busy-time 114 --kill-busy-commands 'Query|Execute'
 
@@ -8132,7 +8132,7 @@ L<"--victims"> for an explanation of that term) requires that queries are
 grouped by the C<arg> attribute.  This creates classes of identical queries
 (stripped of comments).  So queries C<"SELECT c FROM t WHERE id=1"> and
 C<"SELECT c FROM t WHERE id=1"> are grouped into the same class, but
-query c<"SELECT c FROM t WHERE id=3"> is not identical to the first two
+query C<"SELECT c FROM t WHERE id=3"> is not identical to the first two
 queries so it is grouped into another class. Then when L<"--victims">
 C<all-but-oldest> is specified, all but the oldest query in each class is
 killed for each class of queries that matches the match criteria.
@@ -8320,21 +8320,21 @@ The presence of the file specified by L<"--sentinel"> will cause all
 running instances of pt-kill to exit.  You might find this handy to stop cron
 jobs gracefully if necessary.  See also L<"--stop">.
 
-=item --slave-user
+=item --replica-user
 
 type: string
 
-Sets the user to be used to connect to the slaves.
+Sets the user to be used to connect to the replicas.
 This parameter allows you to have a different user with less privileges on the
-slaves but that user must exist on all slaves.
+replicas but that user must exist on all replicas.
 
-=item --slave-password
+=item --replica-password
 
 type: string
 
-Sets the password to be used to connect to the slaves.
-It can be used with --slave-user and the password for the user must be the same
-on all slaves.
+Sets the password to be used to connect to the replicas.
+It can be used with --replica-user and the password for the user must be the same
+on all replicas.
 
 =item --set-vars
 
@@ -8585,7 +8585,7 @@ Common Command values are:
   Reset stmt
   Table Dump
 
-See L<http://dev.mysql.com/doc/refman/5.1/en/thread-commands.html> for a full
+See L<https://dev.mysql.com/doc/refman/en/general-thread-states.html> for a full
 list and description of Command values.
 
 =item --match-db
@@ -8650,7 +8650,8 @@ Allow matching and killing replication threads.
 
 By default, matches do not apply to replication threads; i.e. replication
 threads are completely ignored.  Specifying this option allows matches to
-match (and potentially kill) replication threads on masters and slaves.
+match (and potentially kill) replication threads on replication sources and
+replicas.
 
 =item --test-matching
 
@@ -8864,6 +8865,12 @@ User for login if not current user.
 =item * t
 
 Table to log actions in, if passed through --log-dsn.
+
+=item * s
+
+dsn: mysql_ssl; copy: yes
+
+Create SSL connection
 
 =back
 

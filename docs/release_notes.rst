@@ -1,4 +1,4 @@
-Percona Toolkit
+Release Notes
 ***************
 
 v3.6.0 released 2024-06-12
