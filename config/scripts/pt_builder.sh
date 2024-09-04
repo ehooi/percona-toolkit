@@ -28,6 +28,11 @@ append_arg_to_args () {
   args="$args "$(shell_quote_string "$1")
 }
 
+switch_to_vault_repo() {
+    sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+    sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+}
+
 parse_arguments() {
     pick_args=
     if test "$1" = PICK-ARGS-FROM-ARGV
@@ -207,6 +212,9 @@ install_deps() {
     CURPLACE=$(pwd)
 
     if [ "x$OS" = "xrpm" ]; then
+      if [ "x${RHEL}" = "x7" ]; then
+          switch_to_vault_repo
+      fi
       yum -y install wget git which tar
       add_percona_yum_repo
 #      wget http://jenkins.percona.com/yum-repo/percona-dev.repo
@@ -426,10 +434,12 @@ build_source_deb(){
     cp *_source.changes $WORKDIR/source_deb
     cp *.dsc $WORKDIR/source_deb
     cp *.orig.tar.gz $WORKDIR/source_deb
+    cp *.diff.gz $WORKDIR/source_deb
    # cp *.tar.xz* $CURDIR/source_deb
     cp *_source.changes $CURDIR/source_deb
     cp *.dsc $CURDIR/source_deb
     cp *.orig.tar.gz $CURDIR/source_deb
+    cp *.diff.gz $CURDIR/source_deb
 }
 
 build_tarball(){
