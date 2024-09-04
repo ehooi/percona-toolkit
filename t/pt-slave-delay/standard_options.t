@@ -37,7 +37,7 @@ my $pid_file = "/tmp/pt-slave-delay-test.$PID";
 
 # Check daemonization.  This test used to print to STDOUT, causing
 # false-positive test errors.  The output isn't needed.  The tool
-# said "Reconnected to slave" every time it did SHOW SLAVE STATUS,
+# said "Reconnected to slave" every time it did SHOW REPLICA STATUS,
 # so needlessly.  That was removed.  Now it will print stuff when
 # we kill the process, which we don't want either.
 system("$cmd --delay 1m --interval 1s --run-time 5s --daemonize --pid $pid_file >/dev/null 2>&1");

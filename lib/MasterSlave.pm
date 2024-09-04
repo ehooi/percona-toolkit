@@ -562,7 +562,7 @@ sub get_replica_status {
   }
 }
 
-# Gets SHOW SOURCE STATUS, with column names all lowercased, as a hashref.
+# Gets SHOW BINARY LOGS, with column names all lowercased, as a hashref.
 sub get_source_status {
    my ( $self, $dbh ) = @_;
 

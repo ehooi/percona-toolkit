@@ -567,7 +567,12 @@ sub get_rules {
          return 1 if   ($mysql_version == '3'   && $mysql_version < '3.23'  )
                     || ($mysql_version == '4'   && $mysql_version < '4.1.20')
                     || ($mysql_version == '5.0' && $mysql_version < '5.0.37')
-                    || ($mysql_version == '5.1' && $mysql_version < '5.1.30');
+                    || ($mysql_version == '5.1' && $mysql_version < '5.1.30')
+                    || ($mysql_version == '5.5' && $mysql_version < '5.5.8')
+                    || ($mysql_version == '5.6' && $mysql_version < '5.6.10')
+                    || ($mysql_version == '5.7' && $mysql_version < '5.7.9')
+                    || ($mysql_version == '8.0' && $mysql_version < '8.0.11')
+                    ;
          return 0;
       },
    },
@@ -577,7 +582,7 @@ sub get_rules {
          my ( %args ) = @_;
          my $mysql_version = $args{mysql_version};
          return 0 unless $mysql_version;
-         return $mysql_version < '5.1' ? 1 : 0;  # 5.1.x
+         return $mysql_version < '8.0' ? 1 : 0;  # 8.x
       },
    },
 };

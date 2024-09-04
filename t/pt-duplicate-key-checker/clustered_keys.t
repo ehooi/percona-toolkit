@@ -53,8 +53,54 @@ ok(
                                  : "$sample/issue_295.txt"),
       transform_sample => $transform_int
    ),
-   "Shorten, not remove, clustered dupes"
+   "Shorten, not remove, clustered dupes - InnoDB"
 ) or diag($test_diff);
+
+SKIP: {
+   skip "This test requires TokuDB", 1 if ( !$sb->has_engine('source', 'TokuDB') ) ;
+
+   $dbh->do('SET binlog_format="ROW"');
+   $dbh->do('ALTER TABLE issue_295.t ENGINE=TokuDB');
+
+   ok(
+      no_diff(
+         sub { pt_duplicate_key_checker::main(@args, qw(-d issue_295)) },
+         "$sample/issue_295-51.txt",
+         transform_sample => $transform_int
+      ),
+      "Shorten, not remove, clustered dupes - TokuDB"
+   )  or diag($test_diff);
+}
+
+SKIP: {
+   skip "This test requires MyRocks", 1 if ( !$sb->has_engine('source', 'ROCKSDB') ) ;
+
+   $dbh->do('SET binlog_format="ROW"');
+   $dbh->do('ALTER TABLE issue_295.t ENGINE=ROCKSDB');
+
+   # MyRocks returns 0 rows istead of 1 in 5.7
+   # As a result, wrong size duplicate indexes reported
+   # We are not going to fix this, because 5.7 is EOL
+   my $transform_len = undef;
+   if ( $sandbox_version ge '5.7' && $sandbox_version lt '8.0' ) {
+      $transform_len = sub {
+         my $txt = slurp_file(shift);
+         $txt =~ s/Size Duplicate Indexes   0/Size Duplicate Indexes   8/g;
+         print $txt;
+      };
+   }
+
+   ok(
+      no_diff(
+         sub { pt_duplicate_key_checker::main(@args, qw(-d issue_295)) },
+         "$sample/issue_295-51.txt",
+         transform_sample => $transform_int,
+         transform_result => $transform_len,
+      ),
+      "Shorten, not remove, clustered dupes - MyRocks"
+   )  or diag($test_diff);
+
+}
 
 # #############################################################################
 # Error if InnoDB table has no PK or unique indexes
