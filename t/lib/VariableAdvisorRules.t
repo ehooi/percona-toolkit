@@ -160,7 +160,7 @@ my @cases = (
    {  name   => "innodb_max_dirty_pages_pct",
       vars   => [qw(innodb_max_dirty_pages_pct 89)],
       mysql_version => VersionParser->new('5.1.59'),
-      advice => [qw(innodb_max_dirty_pages_pct)],
+      advice => ['innodb_max_dirty_pages_pct', 'end-of-life mysql version'],
    },
    {  name   => "key_buffer_size",
       vars   => [qw(key_buffer_size 8388608)],
@@ -378,11 +378,11 @@ my @cases = (
    },
    {  name          => "old mysql version 5.1.29",
       mysql_version => VersionParser->new('5.1.29'),
-      advice        => ['old mysql version'],
+      advice        => ['old mysql version', 'end-of-life mysql version'],
    },
    {  name          => "old mysql version 5.5.0",
       mysql_version => VersionParser->new('5.5.0'),
-      advice        => [],
+      advice        => ['old mysql version', 'end-of-life mysql version'],
    },
 );
 
