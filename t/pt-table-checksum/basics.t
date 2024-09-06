@@ -86,8 +86,8 @@ ok(
    no_diff(
       $cmd,
       "$sample/default-results-$sandbox_version.txt",
-      sed_out => '\'/mysql.plugin$/d; /percona_test.checksums$/d; /mysql.help_category$/d; /mysql.help_keyword$/d; /mysql.help_relation$/d; /mysql.help_topic$/d; /mysql.columns_priv$/d; /mysql.engine_cost$/d; /mysql.general_log$/d; /mysql.innodb_index_stats$/d; /mysql.innodb_table_stats$/d; /mysql.password_history$/d; /mysql.procs_priv$/d; /mysql.proxies_priv$/d; /mysql.server_cost$/d; /mysql.slow_log$/d; /mysql.tables_priv$/d\'',
-      post_pipe => 'sed \'/mysql.plugin$/d; /percona_test.checksums$/d; /mysql.help_category$/d; /mysql.help_keyword$/d; /mysql.help_relation$/d; /mysql.help_topic$/d; /mysql.ndb_binlog_index$/d; /mysql.global_grants$/d; /mysql.columns_priv$/d; /mysql.engine_cost$/d; /mysql.general_log$/d; /mysql.innodb_index_stats$/d; /mysql.innodb_table_stats$/d; /mysql.password_history$/d; /mysql.procs_priv$/d; /mysql.proxies_priv$/d; /mysql.server_cost$/d; /mysql.slow_log$/d; /mysql.tables_priv$/d\' | ' .
+      sed_out => '\'/mysql.plugin$/d; /percona_test.checksums$/d; /mysql.help_category$/d; /mysql.help_keyword$/d; /mysql.help_relation$/d; /mysql.help_topic$/d; /mysql.columns_priv$/d; /mysql.component$/d; /mysql.engine_cost$/d; /mysql.general_log$/d; /mysql.innodb_index_stats$/d; /mysql.innodb_table_stats$/d; /mysql.password_history$/d; /mysql.procs_priv$/d; /mysql.proxies_priv$/d; /mysql.server_cost$/d; /mysql.slow_log$/d; /mysql.tables_priv$/d\'',
+      post_pipe => 'sed \'/mysql.plugin$/d; /percona_test.checksums$/d; /mysql.help_category$/d; /mysql.help_keyword$/d; /mysql.help_relation$/d; /mysql.help_topic$/d; /mysql.ndb_binlog_index$/d; /mysql.global_grants$/d; /mysql.columns_priv$/d; /mysql.component$/d; /mysql.engine_cost$/d; /mysql.general_log$/d; /mysql.innodb_index_stats$/d; /mysql.innodb_table_stats$/d; /mysql.password_history$/d; /mysql.procs_priv$/d; /mysql.proxies_priv$/d; /mysql.server_cost$/d; /mysql.slow_log$/d; /mysql.tables_priv$/d\' | ' .
                    'awk \'{print $2 " " $3 " " $4 " " $7 " " $9}\'',
       keep_ouput => 1,
    ),

@@ -112,7 +112,7 @@ sub test_so {
             update_sample => 1,
          ),
          $args{test_name},
-      );
+      ) or diag($test_diff);
    }
    elsif ( $args{like} ) {
       like(
@@ -169,6 +169,7 @@ SKIP: {
    # ########################################################################
    # Test simple, unfiltered get_db_itr().
    # ########################################################################
+   # TODO: create flavor-dependent samples
    test_so(
       result    => $sb->is_cluster_mode 
 	     ? "$out/all-dbs-tbls-cluster-$sandbox_version.txt" 
