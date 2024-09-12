@@ -5736,12 +5736,6 @@ dsn: mysql_ssl; copy: yes
 
 Create SSL connection
 
-=item * s
-
-dsn: mysql_ssl; copy: yes
-
-Create SSL connection
-
 =back
 
 =head1 ENVIRONMENT
