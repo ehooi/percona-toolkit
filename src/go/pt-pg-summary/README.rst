@@ -1,118 +1,86 @@
+.. pt-pg-summary:
+
 ========================
 :program:`pt-pg-summary`
 ========================
 
-**pt-pg-summary** collects information about a PostgreSQL cluster.
+``pt-pg-summary`` collects information about a PostgreSQL cluster.
 
 Usage
------
+=====
 
-``pt-pg-summary [options] [host:[port]]``
+.. code-block:: bash
 
-Binaries
---------
-Please check the `releases <https://github.com/percona/toolkit-go/releases>`_ tab to download the binaries.
+   pt-pg-summary [OPTIONS] [HOST:[PORT]]
 
-Parameters
-^^^^^^^^^^
+Options
+-------
 
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| Short  | Long                            | Default | Description                                                                |
-+========+=================================+=========+============================================================================+
-|        | ``--help``                      |         | Show context-sensitive help (also try ``--help-long`` and ``--help-man``). |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--version``                   |         | Show application version.                                                  |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--databases=DATABASES``       |         | Summarize this comma-separated list of databases. All if not specified.    |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| ``-h`` | ``--host=HOST``                 |         | Host to connect to or local Unix socket for connection                     |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| ``-W`` | ``--password=PASSWORD``         |         | Password to use when connecting.                                           |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| ``-p`` | ``--port=PORT``                 |         | Port number to use for connection.                                         |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--sleep=SLEEP``               | 10      | Seconds to sleep when gathering status counters.                           |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-| ``-U`` | ``--username=USERNAME``         |         | User for login if not current user.                                        |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--disable-ssl``               | true    | Disable SSL for the connection.                                            |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--verbose``                   | false   | Show verbose log.                                                          |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
-|        | ``--debug``                     | false   | Show debug information in the logs.                                        |
-+--------+---------------------------------+---------+----------------------------------------------------------------------------+
+``--help``,  ``--help-long``, ``--help-man``
+  Shows context-sensitive help. ``--help-long`` and ``--help-man`` provide more verbose output.
+
+``--version``
+  Show application version and exit.                                                  |
+
+``--databases``
+  Summarizes this comma-separated list of databases.
+  
+  All if not specified.
+
+``-h``, ``--host``
+  Host or local Unix socket for connection.
+
+``-W``, ``--password``
+  Password to use when connecting.                                           |
+
+``-p``, ``--port``
+  Port number to use for connection.                                         |
+
+``--sleep``
+  Seconds to sleep when gathering status counters.
+  
+  Sleeps 10 seconds if not provided.
+
+``-U``, ``--username``
+  User for login if not current user.
+
+``--disable-ssl``
+  Disable SSL for the connection.
+
+  Enabled by default.
+
+``--verbose``
+  Show verbose log.
+
+``--debug``
+  Show debug information in the logs.
 
 
-.. Currently hidden
-..       --list-encrypted-tables              Include a list of the encrypted tables in all databases
-..       --ask-pass                           Prompt for a password when connecting to PostgreSQL
-..       --config                             Config file
-..       --defaults-file                      Only read PostgreSQL options from the given file
-..       --read-samples                       Create a report from the files found in this directory
-..       --save-samples                       Save the data files used to generate the summary in this directory
+Experimental Options
+--------------------
 
+``--list-encrypted-tables``
+  Include a list of the encrypted tables in all databases.
 
-Output
-^^^^^^
+``--ask-pass``
+  Prompt for a password when connecting to PostgreSQL.
 
-The output is grouped into these categories:
+``--config``
+  Configuration file.
 
-AllDatabases
-    Selects ``datname`` from ``pg_database`` where ``datistemplate`` is false.
+``--defaults-file``
+  Only read PostgreSQL options from the given file.
 
-ClusterInfo
-    Selects cluster information from ``pg_stat_activity``.
+``--read-samples``
+  Create a report from the files found in this directory.
 
-ConnectedClients
-    Counts the connected clients by selecting from ``pg_stat_activity``.
-
-Connections
-    Selects ``state`` from ``pg_stat_activity`` and counts them.
-
-Counters
-    Selects various counter values from ``pg_stat_database``.
-
-DatabaseWaitEvents
-    Shows database wait events from ``pg_locks``, ``pg_stat_database``, ``pg_class``, and ``pg_stat_activity``.
-
-Databases
-    Shows the name and size of databases from ``pg_stat_database``.
-
-GlobalWaitEvents
-    Shows global wait evens from ``pg_stat_activity``.
-
-IndexCacheHitRatio
-    Shows index hit ratios from ``pg_statio_user_indexes``.
-
-PortAndDatadir
-    Shows port and data directory name from ``pg_settings``.
-
-ServerVersion
-    Shows the value of ``server_version_num``.
-
-Setting
-    Selects ``name`` and ``setting`` from ``pg_settings``.
-
-SlaveHosts10
-    Selects information for PostgreSQL version 10.
-
-SlaveHosts96
-    Selects information for PostgreSQL version 9.6.
-
-TableAccess
-    Shows table access information by selecting from ``pg_locks``, ``pg_stat_database`` and ``pg_class``.
-
-TableCacheHitRatio
-    Shows table cache hit ratio information from ``pg_statio_user_tables``.
-
-Tablespaces
-    Show owner and location from ``pg_catalog.pg_tablespace``.
-
+``--save-samples``
+  Save the data files used to generate the summary in this directory.
 
 Output example
-""""""""""""""
+==============
 
-.. code-block:: html
+.. code-block:: none
 
     ##### --- Database Port and Data_Directory --- ####
     +----------------------+----------------------------------------------------+
@@ -468,11 +436,78 @@ Output example
     ##### --- Processes start up command --- ####
     No postgres process found
 
-Minimum auth role
-^^^^^^^^^^^^^^^^^
+Sections
+--------
 
-This program needs to run some commands like ``getShardMap`` and to be able to run those commands
-it needs to run under a user with the ``clusterAdmin`` or ``root`` built-in roles.
+Output is separated into the following sections:
+
+* **AllDatabases**
+
+  Selects ``datname`` from ``pg_database`` where ``datistemplate`` is false.
+
+* **ClusterInfo**
+    
+  Selects cluster information from ``pg_stat_activity``.
+
+* **ConnectedClients**
+    
+  Counts the connected clients by selecting from ``pg_stat_activity``.
+
+* **Connections**
+    
+  Selects ``state`` from ``pg_stat_activity`` and counts them.
+
+* **Counters**
+    
+  Selects various counter values from ``pg_stat_database``.
+
+* **DatabaseWaitEvents**
+    
+  Shows database wait events from ``pg_locks``, ``pg_stat_database``, ``pg_class``, and ``pg_stat_activity``.
+
+* **Databases**
+    
+  Shows the name and size of databases from ``pg_stat_database``.
+
+* **GlobalWaitEvents**
+    
+  Shows global wait evens from ``pg_stat_activity``.
+
+* **IndexCacheHitRatio**
+    
+  Shows index hit ratios from ``pg_statio_user_indexes``.
+
+* **PortAndDatadir**
+    
+  Shows port and data directory name from ``pg_settings``.
+
+* **ServerVersion**
+    
+  Shows the value of ``server_version_num``.
+
+* **Setting**
+    
+  Selects ``name`` and ``setting`` from ``pg_settings``.
+
+* **SlaveHosts10**
+    
+  Selects information for PostgreSQL version 10.
+
+* **SlaveHosts96**
+    
+  Selects information for PostgreSQL version 9.6.
+
+* **TableAccess**
+    
+  Shows table access information by selecting from ``pg_locks``, ``pg_stat_database`` and ``pg_class``.
+
+* **TableCacheHitRatio**
+    
+  Shows table cache hit ratio information from ``pg_statio_user_tables``.
+
+* **Tablespaces**
+    
+  Show owner and location from ``pg_catalog.pg_tablespace``.
 
 Authors
 =======
