@@ -187,6 +187,49 @@ is(
    "test_user privs work (bug 916168)"
 );
 
+unlike(
+   $output,
+   qr/The current checksum table uses deprecated column names./,
+   'Deprecation warning not printed'
+);
+
+diag(`/tmp/12345/use -u root -e "drop user 'test_user'\@'%'"`);
+wait_until(
+   sub {
+      my $rows=$replica2_dbh->selectall_arrayref("SELECT user FROM mysql.user");
+      return !grep { ($_->[0] || '') eq 'test_user' } @$rows;
+   }
+);
+
+# #############################################################################
+# Legacy checksum table
+# #############################################################################
+diag(`/tmp/12345/use -u root < $trunk/t/pt-table-checksum/samples/privs-bug-916168-legacy.sql`);
+
+$output = output(
+   sub { $exit_status = pt_table_checksum::main(@args,
+      "$source_dsn,u=test_user,p=foo", qw(-t sakila.country)) },
+   stderr => 1,
+);
+
+is(
+   $exit_status,
+   0,
+   "test_user privs work (bug 916168) returned no error"
+) or diag($exit_status);
+
+is(
+   PerconaTest::count_checksum_results($output, 'rows'),
+   109,
+   "test_user privs work (bug 916168)"
+);
+
+like(
+   $output,
+   qr/The current checksum table uses deprecated column names./,
+   'Deprecation warning printed for legacy table'
+);
+
 diag(`/tmp/12345/use -u root -e "drop user 'test_user'\@'%'"`);
 wait_until(
    sub {

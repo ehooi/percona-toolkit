@@ -6316,14 +6316,25 @@ sub main {
    die "Heartbeat table $db_tbl does not have a ts column"
       unless $tbl_struct->{is_col}->{ts};
 
+   my $deprecated_cols = 0;
+
    if ( $tbl_struct->{is_col}->{exec_master_log_file}
       && !$tbl_struct->{is_col}->{exec_source_log_file} ) {
-      $exec_source_log_pos_col = 'exec_master_log_file';
+      $relay_source_log_file_col = 'exec_master_log_file';
+      $deprecated_cols = 1;
    }
 
    if ( $tbl_struct->{is_col}->{exec_master_log_pos}
       && !$tbl_struct->{is_col}->{exec_source_log_pos} ) {
       $exec_source_log_pos_col = 'exec_master_log_pos';
+      $deprecated_cols = 1;
+   }
+
+   if ( $deprecated_cols ) {
+      warn "The current heartbeat table uses deprecated column names. Support for these names "
+      . "will be occasionally removed. Please update the table definition with command:\n"
+      . "ALTER TABLE `$db`.`$tbl` RENAME COLUMN exec_master_log_file TO exec_source_log_file, "
+      . "RENAME COLUMN exec_master_log_pos TO exec_source_log_pos;\n";
    }
 
    my $hires_ts = $tbl_struct->{type_for}->{ts} =~ m/char/i ? 1 : 0;
