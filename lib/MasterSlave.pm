@@ -85,19 +85,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }

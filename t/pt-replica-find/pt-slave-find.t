@@ -44,7 +44,7 @@ elsif ( !$replica2_dbh ) {
    plan skip_all => 'Cannot connect to second sandbox replica';
 }
 else {
-   plan tests => 10;
+   plan tests => 14;
 }
 
 my @args = ('h=127.0.0.1,P=12345,u=msandbox,p=msandbox,s=1');
@@ -69,6 +69,71 @@ EOF
 is($output, $expected, 'Source with replica and replica of replica');
 
 ###############################################################################
+# Test --slave-user and --slave-password options
+###############################################################################
+# Create a new user that is going to be replicated on replicas.
+if ($sandbox_version eq '8.0') {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'replica_password'/);
+} else {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED BY 'replica_password'/);
+}
+$sb->do_as_root("replica1", q/GRANT REPLICATION CLIENT ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);                
+
+$sb->wait_for_replicas();
+
+# Ensure we cannot connect to replicas using standard credentials
+# Since replica2 is a replica of replica1, removing the user from the replica1 will remove
+# the user also from replica2
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox'@'%' TO 'msandbox_old'@'%'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+$sb->do_as_root("replica1", q/FLUSH TABLES/);
+
+$output = `$trunk/bin/pt-replica-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname --slave-user replica_user --slave-password replica_password 2>/dev/null`;
+$expected = <<EOF;
+127.0.0.1:12345
++- 127.0.0.1:12346
+   +- 127.0.0.1:12347
+EOF
+
+is(
+   $output,
+   $expected,
+   'Source with replica and replica of replica with --slave-user/--slave-password'
+) or diag($output);
+
+$output = `$trunk/bin/pt-replica-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox s=1 --report-format hostname --slave-user replica_user --slave-password replica_password 2>&1`;
+
+like(
+   $output,
+   qr/\+- 127.0.0.1:12347/,
+   'Test 2: Source with replica and replica of replica with --slave-user/--slave-password'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --slave-user'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --slave-password'
+) or diag($output);
+
+# Repeat the basic test with deprecated --slave-user and --slave-password
+# Drop test user
+$sb->do_as_root("replica1", q/DROP USER 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+
+# Restore privilegs for the other tests
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox_old'@'%' TO 'msandbox'@'%'/);
+$sb->do_as_root("source", q/FLUSH PRIVILEGES/);                
+$sb->do_as_root("source", q/FLUSH TABLES/);
+
+###############################################################################
 # Test --resolve-hostname option (we don't know the hostname of the test
 # machine so we settle for any non null string)
 ###############################################################################
@@ -78,20 +143,6 @@ like (
    qr/127\.0\.0\.1:12345\s+\(\w+\)/s,
    "--resolve-address option"
 ) or diag($output);
-
-# #############################################################################
-# Until MasterSlave::find_replica_hosts() is improved to overcome the problems
-# with SHOW REPLICA HOSTS, this test won't work.
-# #############################################################################
-# Make replica2 replica of source.
-#diag(`../../mk-slave-move/mk-slave-move --sibling-of-master h=127.1,P=12347`);
-#$output = `perl ../mk-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox`;
-#$expected = <<EOF;
-#127.0.0.1:12345
-#+- 127.0.0.1:12346
-#+- 127.0.0.1:12347
-#EOF
-#is($output, $expected, 'Source with two replicas');
 
 # #########################################################################
 # Issue 391: Add --pid option to all scripts

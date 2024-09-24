@@ -14,42 +14,37 @@ use Test::More;
 use PerconaTest;
 use Sandbox;
 use SqlModes;
-require "$trunk/bin/pt-table-checksum";
+require "$trunk/bin/pt-heartbeat";
 
 my $dp  = new DSNParser(opts=>$dsn_opts);
 my $sb  = new Sandbox(basedir => '/tmp', DSNParser => $dp);
-my $dbh = $sb->get_dbh_for('source');
+my $source_dbh = $sb->get_dbh_for('source');
+my $replica1_dbh = $sb->get_dbh_for('replica1');
 
-if ( !$dbh ) {
+if ( !$source_dbh ) {
    plan skip_all => 'Cannot connect to sandbox source';
 }
-else {
-   plan tests => 7;
+elsif ( !$replica1_dbh ) {
+   plan skip_all => 'Cannot connect to sandbox replica1';
 }
 
-# The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
-# so we need to specify --set-vars innodb_lock_wait_timeout=3 else the tool will die.
-# And --max-load "" prevents waiting for status variables.
-my $source_dsn = 'h=127.1,P=12345,u=msandbox,p=msandbox,D=test,s=1';
-my @args       = ($source_dsn, qw(--replicate test.checksums -d test --replica-user replica_user --replica-password replica_password --ignore-databases mysql)); 
-my $output;
+my $cnf  = "/tmp/12345/my.sandbox.cnf";
+my ($output, $exit_code);
+my $rows;
+
+$source_dbh->do('CREATE DATABASE IF NOT EXISTS test');
 
 # Create a new user that is going to be replicated on replicas.
-# After that, stop replication, delete the user from the source just to ensure that
-# on the source we are using the sandbox user, and start relication again to run
-# the tests
 if ($sandbox_version eq '8.0') {
     $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'replica_password'/);
 } else {
     $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED BY 'replica_password'/);
 }
 $sb->do_as_root("replica1", q/GRANT REPLICATION CLIENT ON *.* TO 'replica_user'@'localhost'/);
-$sb->do_as_root("replica1", q/GRANT ALL ON *.* TO 'replica_user'@'localhost'/);                
 $sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);                
 
 $sb->wait_for_replicas();
 
-$sb->load_file('source', 't/pt-table-checksum/samples/issue_1651002.sql');
 # Ensure we cannot connect to replicas using standard credentials
 # Since replica2 is a replica of replica1, removing the user from the replica1 will remove
 # the user also from replica2
@@ -57,16 +52,32 @@ $sb->do_as_root("replica1", q/RENAME USER 'msandbox'@'%' TO 'msandbox_old'@'%'/)
 $sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
 $sb->do_as_root("replica1", q/FLUSH TABLES/);
 
-$output = output(
-   sub { pt_table_checksum::main(@args) },
+($output, $exit_code) = full_output(
+   sub {
+      pt_heartbeat::main(
+         qw(-h 127.1 -u msandbox -p msandbox -P 12345 --database test),
+         qw(--table heartbeat --create-table --update --interval 0.5  --run-time 2), 
+         qw(--replica-user replica_user --replica-password replica_password)
+      )
+   },
    stderr => 1,
 );
 
 is(
-   PerconaTest::count_checksum_results($output, 'rows'),
-   6,
-   "Large BLOB/TEXT/BINARY Checksum"
+   $exit_code,
+   0,
+   "pt-heartbeat finished correctly"
 ) or diag($output);
+ 
+$rows = `/tmp/12346/use -u root -s -e "select server_id from test.heartbeat"`;
+
+chomp $rows;
+
+is(
+   $rows,
+   12345,
+   "Replica1 has source heartbeat",
+);
 
 unlike(
    $output,
@@ -80,20 +91,44 @@ unlike(
    'Deprecation warning not printed when option --replica-password provided'
 ) or diag($output);
 
-#Legacy variant
+$source_dbh->do('TRUNCATE TABLE test.heartbeat');
 
-@args = ($source_dsn, qw(--replicate test.checksums -d test --slave-user replica_user --slave-password replica_password --ignore-databases mysql)); 
+$rows = `/tmp/12346/use -u root -s -e "select count(*) from test.heartbeat"`;
 
-$output = output(
-   sub { pt_table_checksum::main(@args) },
+chomp $rows;
+
+is(
+   $rows,
+   0,
+   'Heartbeat table truncated on replica'
+);
+
+($output, $exit_code) = full_output(
+   sub {
+      pt_heartbeat::main(
+         qw(-h 127.1 -u msandbox -p msandbox -P 12345 --database test),
+         qw(--table heartbeat --create-table --update --interval 0.5  --run-time 2), 
+         qw(--slave-user replica_user --slave-password replica_password)
+      )
+   },
    stderr => 1,
 );
 
 is(
-   PerconaTest::count_checksum_results($output, 'rows'),
-   6,
-   "Large BLOB/TEXT/BINARY Checksum"
+   $exit_code,
+   0,
+   "pt-heartbeat finished correctly"
 ) or diag($output);
+ 
+$rows = `/tmp/12346/use -u root -s -e "select server_id from test.heartbeat"`;
+
+chomp $rows;
+
+is(
+   $rows,
+   12345,
+   "Replica1 has source heartbeat",
+);
 
 like(
    $output,
@@ -110,8 +145,7 @@ like(
 # #############################################################################
 # Done.
 # #############################################################################
-diag("Stopping the sandbox to leave a clean sandbox for the next test file");
-
+# Drop test user
 $sb->do_as_root("replica1", q/DROP USER 'replica_user'@'localhost'/);
 $sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
 
@@ -120,8 +154,9 @@ $sb->do_as_root("replica1", q/RENAME USER 'msandbox_old'@'%' TO 'msandbox'@'%'/)
 $sb->do_as_root("source", q/FLUSH PRIVILEGES/);                
 $sb->do_as_root("source", q/FLUSH TABLES/);
 
-$sb->wipe_clean($dbh);
+$sb->wipe_clean($source_dbh);
 
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 
+done_testing;
 exit;

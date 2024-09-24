@@ -4272,19 +4272,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }
@@ -8713,6 +8713,37 @@ sub main {
    $o->get_specs();
    $o->get_opts();
 
+   # Deprecated options
+   if ( my $slaves = $o->get('check-slave-lag') ) {
+      warn "Option --check-slave-lag is deprecated and will be removed in future versions. Use --check-replica-lag instead.";
+      if ( my $replicas = $o->get('check-replica-lag') ) {
+         push(@$slaves, @$replicas);
+      }
+      $o->set('check-replica-lag', $slaves);
+   }
+
+   if ( my $slaves = $o->get('skip-check-slave-lag') ) {
+      warn "Option --skip-check-slave-lag is deprecated and will be removed in future versions. Use --skip-check-replica-lag instead.";
+      if ( my $replicas = $o->get('skip-check-replica-lag') ) {
+         push(@$slaves, @$replicas);
+      }
+      $o->set('skip-check-replica-lag', $slaves);
+   }
+
+   if ( $o->got('slave-user') ) {
+      warn "Option --slave-user is deprecated and will be removed in future versions. Use --replica-user instead.";
+      if ( !$o->got('replica-user') ) {
+         $o->set('replica-user', $o->get('slave-user'));
+      }
+   }
+
+   if ( $o->got('slave-password') ) {
+      warn "Option --slave-password is deprecated and will be removed in future versions. Use --replica-password instead.";
+      if ( !$o->got('replica-password') ) {
+         $o->set('replica-password', $o->get('slave-password'));
+      }
+   }
+
    if ( $o->get('null-to-not-null') ) {
       $ignore_code{1048} = 1;
    }
@@ -13008,6 +13039,13 @@ If you don't want to monitor ALL replicas, but you want more than just one
 replica to be monitored, then use the DSN option to the L<"--recursion-method">
 option instead of this option.
 
+=item --check-slave-lag
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--check-replica-lag"> instead.
+
 =item --chunk-index
 
 type: string
@@ -13557,6 +13595,27 @@ DSN to skip when checking replica lag. It can be used multiple times.
 Example: --skip-check-replica-lag h=127.0.0.1,P=12345 --skip-check-replica-lag h=127.0.0.1,P=12346
 Please take into consideration that even when for the MySQL driver h=127.1 is equal to h=127.0.0.1,
 for this parameter you need to specify the full IP address.
+
+=item --skip-check-slave-lag
+
+type: DSN; repeatable: yes
+
+This option is deprecated and will be removed in future releases.
+Use L<"--skip-check-replica-lag"> instead.
+
+=item --slave-user
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-user"> instead.
+
+=item --slave-password
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-password"> instead.
 
 =item --replica-user
 

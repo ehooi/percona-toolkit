@@ -6738,19 +6738,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }
@@ -7056,8 +7056,10 @@ sub is_source_of {
          . $replica_status->{"${source_name}_user"};
    }
 
-   if ( ($replica_status->{replica_io_state} || '')
-      eq 'Waiting for ${source_name} to send event' )
+   if ( ( ($replica_status->{replica_io_state} || '')
+      eq 'Waiting for source to send event' )
+   || ( ($replica_status->{replica_io_state} || '')
+      eq 'Waiting for master to send event' ) )
    {
       my ( $source_log_name, $source_log_num )
          = $source_status->{file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
@@ -10154,6 +10156,42 @@ sub main {
    $o->get_specs();
    $o->get_opts();
 
+   # Deprecated options
+   if ( $o->got('check-master') ) {
+      warn "Option --[no]check-master is deprecated and will be removed in future versions. Use --check-source instead.";
+      if ( !$o->got('check-source') ) {
+         $o->set('check-source', $o->get('check-master'));
+      }
+   }
+   
+   if ( $o->got('check-slave') ) {
+      warn "Option --[no]check-slave is deprecated and will be removed in future versions. Use --check-replica instead.";
+      if ( !$o->got('check-replica') ) {
+         $o->set('check-replica', $o->get('check-slave'));
+      }
+   }
+
+   if ( $o->got('sync-to-master') ) {
+      warn "Option --sync-to-master is deprecated and will be removed in future versions. Use --sync-to-source instead.";
+      if ( !$o->got('sync-to-source') ) {
+         $o->set('sync-to-source', $o->get('sync-to-master'));
+      }
+   }
+
+   if ( $o->got('slave-user') ) {
+      warn "Option --slave-user is deprecated and will be removed in future versions. Use --replica-user instead.";
+      if ( !$o->got('replica-user') ) {
+         $o->set('replica-user', $o->get('slave-user'));
+      }
+   }
+
+   if ( $o->got('slave-password') ) {
+      warn "Option --slave-password is deprecated and will be removed in future versions. Use --replica-password instead.";
+      if ( !$o->got('replica-password') ) {
+         $o->set('replica-password', $o->get('slave-password'));
+      }
+   }
+
    my $dp = $o->DSNParser();
    $dp->prop('set-vars', $o->set_vars());
 
@@ -12514,6 +12552,20 @@ The error message only prints the first child table found with an
 C<ON DELETE CASCADE>, C<ON UPDATE CASCADE>, or C<ON UPDATE SET NULL>
 foreign key constraint.  There could be other affected child tables.
 
+=item --[no]check-master
+
+default: yes
+
+This option is deprecated and will be removed in future releases.
+Use L<"--[no]check-source"> instead.
+
+=item --[no]check-slave
+
+This option is deprecated and will be removed in future releases.
+Use L<"--[no]check-replica"> instead.
+
+default: yes
+
 =item --[no]check-source
 
 default: yes
@@ -12965,6 +13017,20 @@ The tool will examine server B's copy of the table.  If it looks like server B's
 data in table C<test.tbl1> is different from server A's copy, the tool will not
 sync that table on servers C and D.
 
+=item --slave-user
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-user"> instead.
+
+=item --slave-password
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-password"> instead.
+
 =item --replica-user
 
 type: string
@@ -13004,6 +13070,11 @@ The tool prints a warning and continues if a variable cannot be set.
 short form: -S; type: string
 
 Socket file to use for connection.
+
+=item --sync-to-master
+
+This option is deprecated and will be removed in future releases.
+Use L<"--sync-to-source"> instead.
 
 =item --sync-to-source
 

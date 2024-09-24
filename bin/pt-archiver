@@ -3707,19 +3707,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }
@@ -6360,6 +6360,15 @@ sub main {
    $o->get_specs();
    $o->get_opts();
 
+   # Deprecated options
+   if ( my $slaves = $o->get('check-slave-lag') ) {
+      warn "Option --check-slave-lag is deprecated and will be removed in future versions. Use --check-replica-lag instead.";
+      if ( my $replicas = $o->get('check-replica-lag')) {
+         push(@$slaves, @$replicas);
+      }
+      $o->set('check-replica-lag', $slaves);
+   }
+
    my $dp = $o->DSNParser();
    $dp->prop('set-vars', $o->set_vars());
 
@@ -7906,6 +7915,13 @@ type: string; repeatable: yes
 Pause archiving until the specified DSN's replica lag is less than L<"--max-lag">.
 This option can be specified multiple times for checking more than one replica.
 
+=item --check-slave-lag
+
+type: string; repeatable: yes
+
+This option is deprecated and will be removed in future releases.
+Use L<"--check-replica-lag"> instead.
+
 =item --columns
 
 short form: -c; type: array
@@ -8328,22 +8344,6 @@ The presence of the file specified by L<"--sentinel"> will cause pt-archiver to
 stop archiving and exit.  The default is /tmp/pt-archiver-sentinel.  You
 might find this handy to stop cron jobs gracefully if necessary.  See also
 L<"--stop">.
-
-=item --replica-user
-
-type: string
-
-Sets the user to be used to connect to the replicas.
-This parameter allows you to have a different user with less privileges on the
-replicas but that user must exist on all replicas.
-
-=item --replica-password
-
-type: string
-
-Sets the password to be used to connect to the replicas.
-It can be used with --replica-user and the password for the user must be the same
-on all replicas.
 
 =item --set-vars
 

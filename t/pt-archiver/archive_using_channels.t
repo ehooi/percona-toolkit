@@ -28,7 +28,7 @@ elsif ( !$replica_dbh ) {
 } elsif ($sandbox_version lt '5.7') {
    plan skip_all => 'Only on MySQL 5.7+';
 } else {
-   plan tests => 5;
+   plan tests => 8;
 }
 
 my ($source1_dbh, $source1_dsn) = $sb->start_sandbox(
@@ -93,6 +93,32 @@ like (
     $output,
     qr/"channel" was not specified/,
     'Message saying channel name must be specified'
+) or diag($output);
+
+# Legacy option --check-slave-lag
+@args = ('--source', $source1_dsn.',D=test,t=t1', '--purge', '--where', sprintf('id >= %d', $num_rows / 2), "--check-slave-lag", $replica1_dsn);
+
+$output = output(
+   sub { $exit_status = pt_archiver::main(@args) },
+   stderr => 1,
+);
+
+isnt(
+    $exit_status,
+    0,
+    'Must specify a channel name',
+);
+
+like (
+    $output,
+    qr/"channel" was not specified/,
+    'Message saying channel name must be specified'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning printed'
 ) or diag($output);
 
 push @args, ('--channel', 'sourcechan1');

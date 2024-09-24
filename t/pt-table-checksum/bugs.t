@@ -206,7 +206,6 @@ like(
    "Bug 1016131: ptc should skip tables where all columns are excluded"
 );
 
-# Test #12
 {
 $output = output(
    sub { pt_table_checksum::main(@args, 
@@ -222,6 +221,36 @@ like(
       "--skip-check-replica-lag",
 );
 
+unlike(
+   $output,
+   qr/Option --skip-check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --skip-check-replica-lag provided'
+) or diag($output);
+
+# Deprecatted option --skip-check-slave-lag
+$output = output(
+   sub {
+      pt_table_checksum::main(@args, 
+         '--skip-check-slave-lag', "h=127.0.0.1,P=".$sb->port_for('replica1'),
+         ),
+   },
+   stderr => 1,
+);
+
+$skipping_str = "Skipping.*".$sb->port_for('replica1');
+like(
+      $output,
+      qr/$skipping_str/s,
+      "--skip-check-slave-lag",
+);
+
+like(
+   $output,
+   qr/Option --skip-check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --skip-check-slave-lag provided'
+) or diag($output);
+
+# Test #12
 # Test for skip-check-replica-lag and empty replica port
 $output = output(
    sub { pt_table_checksum::main(@args,

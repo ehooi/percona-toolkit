@@ -32,7 +32,7 @@ elsif ( !$replica2_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica2';
 }
 else {
-   plan tests => 29;
+   plan tests => 35;
 }
 
 diag(`rm -rf /tmp/pt-heartbeat-sentinel >/dev/null 2>&1`);
@@ -198,7 +198,26 @@ like(
 
 $output = output(
    sub { pt_heartbeat::main(qw(-h 127.1 -P 12347 -u msandbox -p msandbox),
+      qw(-D test --check --print-master-server-id)) },
+   stderr => 1
+);
+
+like(
+   $output,
+   qr/0\.\d\d\s+12346\n/,
+   "--check 12347, automatic source server_id with legacy option"
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --print-master-server-id is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --print-master-server-id'
+) or diag($output);
+
+$output = output(
+   sub { pt_heartbeat::main(qw(-h 127.1 -P 12347 -u msandbox -p msandbox),
       qw(-D test --check --print-source-server-id --source-server-id 12346)) },
+   stderr => 1
 );
 
 like(
@@ -206,6 +225,43 @@ like(
    qr/0\.\d\d\s+12346\n/,
    "--check 12347 from --source-server-id 12346"
 );
+
+$output = output(
+   sub { pt_heartbeat::main(qw(-h 127.1 -P 12347 -u msandbox -p msandbox),
+      qw(-D test --check --print-source-server-id --master-server-id 12346)) },
+   stderr => 1
+);
+
+like(
+   $output,
+   qr/0\.\d\d\s+12346\n/,
+   "--check 12347 from --master-server-id 12346"
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --master-server-id is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --master-server-id'
+) or diag($output);
+
+$output = output(
+   sub { pt_heartbeat::main(qw(-h 127.1 -P 12347 -u msandbox -p msandbox),
+      qw(-D test --check --print-source-server-id --master-server-id 12346),
+      qw( --source-server-id 12345)) },
+   stderr => 1
+);
+
+like(
+   $output,
+   qr/0\.\d\d\s+12345\n/,
+   "--check 12347 from --source-server-id 12345 regardless of --master-server-id 12346"
+);
+
+like(
+   $output,
+   qr/Option --master-server-id is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --master-server-id'
+) or diag($output);
 
 $output = output(
    sub { pt_heartbeat::main(qw(-h 127.1 -P 12347 -u msandbox -p msandbox),

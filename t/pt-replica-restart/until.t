@@ -17,12 +17,8 @@ use PerconaTest;
 use Sandbox;
 require "$trunk/bin/pt-replica-restart";
 
-if ( $sandbox_version lt '5.6' ) {
-   plan skip_all => "Requires MySQL 5.6";
-}
-
 diag('Restarting the sandbox');
-diag(`SAKILA=0 REPLICATION_THREADS=0 GTID=1 $trunk/sandbox/test-env restart`);
+diag(`SAKILA=0 REPLICATION_THREADS=0 $trunk/sandbox/test-env restart`);
 diag("Sandbox restarted");
 
 my $dp = new DSNParser(opts=>$dsn_opts);
@@ -97,7 +93,7 @@ sub wait_repl_ok {
 }
 
 # #############################################################################
-# Basic test to see if restart works with GTID.
+# Testing --until-source option
 # #############################################################################
 
 $source_dbh->do('DROP DATABASE IF EXISTS test');
@@ -113,9 +109,17 @@ wait_repl_broke($replica1_dbh) or die "Failed to break replication";
 my $r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
 like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replica: Replication broke');
 
+$source_dbh->do('INSERT INTO test.t SELECT 2');
+$r = $source_dbh->selectrow_hashref("show ${source_status} status");
+my $until_file = $r->{file};
+my $until_pos = $r->{position};
+$source_dbh->do('INSERT INTO test.t SELECT 3');
+
+my (undef, $tempfile) = tempfile();
+
 # Start pt-replica-restart and wait up to 5s for it to fix replication
 # (it should take < 1s but tests can be really slow sometimes).
-start("$replica1_dsn") or die "Failed to start pt-replica-restart";
+start("--until-source=${until_file},${until_pos} $replica1_dsn > $tempfile 2>&1") or die "Failed to start pt-replica-restart";
 wait_repl_ok($replica1_dbh);
 
 # Check if replication is fixed.
@@ -124,124 +128,154 @@ like(
    $r->{last_errno},
    qr/^0$/,
    'Event is skipped',
-) or BAIL_OUT("Replication is broken");
+) or BAIL_OUT("Replication is broken: " . Dumper($r) . `cat $log_file`);
+
+is(
+   $r->{"relay_${source_name}_log_file"},
+   $until_file,
+   'Started until specified source binary log file'
+) or diag(Dumper($r));
+
+is(
+   $r->{"exec_${source_name}_log_pos"},
+   $until_pos,
+   'Started until specified source binary log pos'
+) or diag(Dumper($r));
+
+unlike(
+   slurp_file($tempfile),
+   qr/Option --until-master is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed for option --unitl-source'
+) or diag(slurp_file($tempfile));
 
 # Stop pt-replica-restart.
 stop() or die "Failed to stop pt-replica-restart";
+diag(`rm $tempfile >/dev/null`);
 
+$replica1_dbh->do('CREATE TABLE test.t (a INT)');
+$replica1_dbh->do("start ${replica_name}");
+$sb->wait_for_replicas;
 # #############################################################################
-# Test the replica of the source.
+# Testing legacy --until-master option
 # #############################################################################
-
 $source_dbh->do('DROP DATABASE IF EXISTS test');
 $source_dbh->do('CREATE DATABASE test');
 $source_dbh->do('CREATE TABLE test.t (a INT)');
 $sb->wait_for_replicas;
 
 # Bust replication
-$replica2_dbh->do('DROP TABLE test.t');
+$replica1_dbh->do('DROP TABLE test.t');
 $source_dbh->do('INSERT INTO test.t SELECT 1');
-wait_repl_broke($replica2_dbh) or die "Failed to break replication";
+wait_repl_broke($replica1_dbh) or die "Failed to break replication";
 
-# fetch the source uuid, which is the machine we need to skip an event from
-$r = $source_dbh->selectrow_hashref('select @@GLOBAL.server_uuid as uuid');
-my $uuid = $r->{uuid};
+$r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
+like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replica: Replication broke');
 
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
-like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replicaofreplica: Replication broke');
+$source_dbh->do('INSERT INTO test.t SELECT 2');
+$r = $source_dbh->selectrow_hashref("show ${source_status} status");
+$until_file = $r->{file};
+$until_pos = $r->{position};
+$source_dbh->do('INSERT INTO test.t SELECT 3');
 
-# Start an instance
-start("--source-uuid=$uuid $replica2_dsn") or die;
-wait_repl_ok($replica2_dbh);
+(undef, $tempfile) = tempfile();
 
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
+# Start pt-replica-restart and wait up to 5s for it to fix replication
+# (it should take < 1s but tests can be really slow sometimes).
+start("--until-master=${until_file},${until_pos} $replica1_dsn > $tempfile 2>&1") or die "Failed to start pt-replica-restart";
+wait_repl_ok($replica1_dbh);
+
+# Check if replication is fixed.
+$r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
 like(
    $r->{last_errno},
    qr/^0$/,
-   'Skips event from source on replica2'
-) or BAIL_OUT("Replication is broken");
+   'Event is skipped',
+) or BAIL_OUT("Replication is broken: " . Dumper($r) . `cat $log_file`);
 
-stop() or die "Failed to stop pt-replica-restart";
+is(
+   $r->{"relay_${source_name}_log_file"},
+   $until_file,
+   'Started until specified source binary log file'
+) or diag(Dumper($r));
 
-# #############################################################################
-# Test the replica of the source with deprecated option syntax.
-# #############################################################################
-
-$source_dbh->do('DROP DATABASE IF EXISTS test');
-$source_dbh->do('CREATE DATABASE test');
-$source_dbh->do('CREATE TABLE test.t (a INT)');
-$sb->wait_for_replicas;
-
-# Bust replication
-$replica2_dbh->do('DROP TABLE test.t');
-$source_dbh->do('INSERT INTO test.t SELECT 1');
-wait_repl_broke($replica2_dbh) or die "Failed to break replication";
-
-# fetch the source uuid, which is the machine we need to skip an event from
-$r = $source_dbh->selectrow_hashref('select @@GLOBAL.server_uuid as uuid');
-$uuid = $r->{uuid};
-
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
-like(
-   $r->{last_error},
-   qr/Table 'test.t' doesn't exist'/,
-   'replicaofreplica - deprecated option: Replication broke');
-
-# Start an instance
-my (undef, $tempfile) = tempfile();
-start("--master-uuid=$uuid $replica2_dsn > $tempfile 2>&1") or die;
-wait_repl_ok($replica2_dbh);
+is(
+   $r->{"exec_${source_name}_log_pos"},
+   $until_pos,
+   'Started until specified source binary log pos'
+) or diag(Dumper($r));
 
 like(
    slurp_file($tempfile),
-   qr/Option --master-uuid is deprecated and will be removed in future versions./,
-   'Deprecation warning printed for legacy option --master-uuid'
-);
+   qr/Option --until-master is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for legacy option --unitl-master'
+) or diag(slurp_file($tempfile));
 
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
-like(
-   $r->{last_errno},
-   qr/^0$/,
-   'Skips event from source on replica2 for deprecated --master-uuid'
-) or BAIL_OUT("Replication is broken");
-
+# Stop pt-replica-restart.
 stop() or die "Failed to stop pt-replica-restart";
 diag(`rm $tempfile >/dev/null`);
 
-# #############################################################################
-# Test skipping 2 events in a row.
-# #############################################################################
+$replica1_dbh->do('CREATE TABLE test.t (a INT)');
+$replica1_dbh->do("start ${replica_name}");
+$sb->wait_for_replicas;
 
+# #############################################################################
+# Testing --until-relay option
+# #############################################################################
 $source_dbh->do('DROP DATABASE IF EXISTS test');
 $source_dbh->do('CREATE DATABASE test');
 $source_dbh->do('CREATE TABLE test.t (a INT)');
 $sb->wait_for_replicas;
 
 # Bust replication
-$replica2_dbh->do('DROP TABLE test.t');
+$replica1_dbh->do('DROP TABLE test.t');
 $source_dbh->do('INSERT INTO test.t SELECT 1');
-$source_dbh->do('INSERT INTO test.t SELECT 1');
-wait_repl_broke($replica2_dbh) or die "Failed to break replication";
+wait_repl_broke($replica1_dbh) or die "Failed to break replication";
 
-# fetch the source uuid, which is the machine we need to skip an event from
-$r = $source_dbh->selectrow_hashref('select @@GLOBAL.server_uuid as uuid');
-$uuid = $r->{uuid};
+$r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
+like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replica: Replication broke');
 
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
-like($r->{last_error}, qr/Table 'test.t' doesn't exist'/, 'replicaofreplicaskip2: Replication broke');
+$r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
+$until_file = $r->{relay_log_file};
+my $rm1 = $source_dbh->selectrow_hashref("show ${source_status} status");
+$source_dbh->do('INSERT INTO test.t SELECT 2');
+my $rm2 = $source_dbh->selectrow_hashref("show ${source_status} status");
+$until_pos = $r->{relay_log_pos} + $rm2->{position} - $rm1->{position};
+$source_dbh->do('INSERT INTO test.t SELECT 3');
 
-# Start an instance
-start("--skip-count=2 --source-uuid=$uuid $replica2_dsn") or die;
-wait_repl_ok($replica2_dbh);
+(undef, $tempfile) = tempfile();
 
-$r = $replica2_dbh->selectrow_hashref("show ${replica_name} status");
+# Start pt-replica-restart and wait up to 5s for it to fix replication
+# (it should take < 1s but tests can be really slow sometimes).
+start("--until-relay=${until_file},${until_pos} $replica1_dsn > $tempfile 2>&1") or die "Failed to start pt-replica-restart";
+wait_repl_ok($replica1_dbh);
+
+# Check if replication is fixed.
+$r = $replica1_dbh->selectrow_hashref("show ${replica_name} status");
 like(
    $r->{last_errno},
    qr/^0$/,
-   'Skips multiple events'
-) or BAIL_OUT("Replication is broken");
+   'Event is skipped',
+) or BAIL_OUT("Replication is broken: " . Dumper($r) . `cat $log_file`);
 
+is(
+   $r->{"relay_log_file"},
+   $until_file,
+   'Started until specified relay log file'
+) or diag(Dumper($r));
+
+is(
+   $r->{"relay_log_pos"},
+   $until_pos,
+   'Started until specified relay log pos'
+) or diag(Dumper($r));
+
+# Stop pt-replica-restart.
 stop() or die "Failed to stop pt-replica-restart";
+diag(`rm $tempfile >/dev/null`);
+
+$replica1_dbh->do('CREATE TABLE test.t (a INT)');
+$replica1_dbh->do("start ${replica_name}");
+$sb->wait_for_replicas;
 
 # #############################################################################
 # Done.

@@ -36,7 +36,7 @@ my $sb = new Sandbox(basedir => '/tmp', DSNParser => $dp);
 if ($sb->is_cluster_mode) {
     plan skip_all => 'Not for PXC';
 } else {
-    plan tests => 6;
+    plan tests => 18;
 }                                  
 my $source_dbh = $sb->get_dbh_for('source');
 my $replica_dbh = $sb->get_dbh_for('replica1');
@@ -97,7 +97,7 @@ like(
       $output,
       qr/Replica lag is \d+ seconds on .*  Waiting/s,
       "Base test waits on the correct replica",
-);
+) or diag($output);
 
 # Repeat the test now using --check-replica-lag
 $args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 1 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
@@ -119,6 +119,39 @@ like(
       qr/Replica lag is \d+ seconds on .*  Waiting/s,
       "--check-replica-lag waits on the correct replica",
 );
+
+unlike(
+   $output,
+   qr/Option --check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --check-replica-lag provided'
+) or diag($output);
+
+# Repeat the test now using deprecated --check-slave-lag
+$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 1 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+      . "--check-slave-lag h=127.0.0.1,P=12346,u=msandbox,p=msandbox,D=test,t=sbtest --pid $tmp_file_name --progress time,5";
+
+# Run a full table scan query to ensure the replica is behind the source
+reset_query_cache($source_dbh, $source_dbh);
+# Update one row so replica is delayed
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 LIMIT 1');
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
+
+# We need to sleep, otherwise pt-osc can finish before replica is delayed
+sleep($max_lag);
+diag("Starting deprecated --check-slave-lag test. This is going to take some time due to the delay in the replica");
+$output = `$trunk/bin/pt-online-schema-change $args 2>&1`;
+
+like(
+      $output,
+      qr/Replica lag is \d+ seconds on .*  Waiting/s,
+      "--check-slave-lag waits on the correct replica",
+);
+
+like(
+   $output,
+   qr/Option --check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --check-slave-lag provided'
+) or diag($output);
 
 # Repeat the test new adding and removing a replica during the process
 $args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 1 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
@@ -187,6 +220,137 @@ unlike(
       qr/Replica lag is \d+ seconds on .*:12346.  Waiting/s,
       "--skip-check-replica-lag is really skipping the replica",
 );
+
+unlike(
+   $output,
+   qr/Option --skip-check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --skip-check-replica-lag provided'
+) or diag($output);
+
+# Repeat the test now using deprecated --skip-check-slave-lag
+# Run a full table scan query to ensure the replica is behind the source
+reset_query_cache($source_dbh, $source_dbh);
+# Update one row so replica is delayed
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 LIMIT 1');
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
+
+# We need to sleep, otherwise pt-osc can finish before replica is delayed
+sleep($max_lag);
+$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 1 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+      . "--skip-check-slave-lag h=127.0.0.1,P=12346,u=msandbox,p=msandbox,D=test,t=sbtest --pid $tmp_file_name --progress time,5";
+
+diag("Starting deprecated --skip-check-slave-lag test. This is going to take some time due to the delay in the replica");
+$output = `$trunk/bin/pt-online-schema-change $args 2>&1`;
+
+unlike(
+      $output,
+      qr/Replica lag is \d+ seconds on .*:12346.  Waiting/s,
+      "--skip-check-slave-lag is really skipping the replica",
+);
+
+like(
+   $output,
+   qr/Option --skip-check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --skip-check-slave-lag provided'
+) or diag($output);
+
+# Test --replica-user and --replica-password
+
+# Create a new user that is going to be replicated on replicas.
+if ($sandbox_version eq '8.0') {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'replica_password'/);
+} else {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED BY 'replica_password'/);
+}
+$sb->do_as_root("replica1", q/GRANT REPLICATION CLIENT ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);                
+
+$sb->wait_for_replicas();
+
+# Ensure we cannot connect to replicas using standard credentials
+# Since replica2 is a replica of replica1, removing the user from the replica1 will remove
+# the user also from replica2
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox'@'%' TO 'msandbox_old'@'%'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+$sb->do_as_root("replica1", q/FLUSH TABLES/);
+
+# Repeat the basic test with --replica-user and --replica-password
+# Run a full table scan query to ensure the replica is behind the source
+reset_query_cache($source_dbh, $source_dbh);
+# Update one row so replica is delayed
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 LIMIT 1');
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
+
+# We need to sleep, otherwise pt-osc can finish before replica is delayed
+sleep($max_lag);
+$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+      . "--pid $tmp_file_name --progress time,5 "
+      . "--replica-user replica_user --replica-password replica_password";
+
+diag("Starting basic test with --replica-user and --replica-password. This is going to take some time due to the delay in the replica");
+$output = `$trunk/bin/pt-online-schema-change $args 2>&1`;
+
+like(
+      $output,
+      qr/Replica lag is \d+ seconds on .*:12346.  Waiting/s,
+      "Basic test waits on the correct replica with --replica-user and --replica-password",
+) or diag($output);
+
+unlike(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed for option --replica-user'
+) or diag($output);
+
+unlike(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed for option --replica-password'
+) or diag($output);
+
+# Repeat the basic test with deprecated --slave-user and --slave-password
+# Run a full table scan query to ensure the replica is behind the source
+reset_query_cache($source_dbh, $source_dbh);
+# Update one row so replica is delayed
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 LIMIT 1');
+$source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
+
+# We need to sleep, otherwise pt-osc can finish before replica is delayed
+sleep($max_lag);
+$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+      . "--pid $tmp_file_name --progress time,5 "
+      . "--slave-user replica_user --slave-password replica_password";
+
+diag("Starting basic test with deprecated --slave-user and --slave-password. This is going to take some time due to the delay in the replica");
+$output = `$trunk/bin/pt-online-schema-change $args 2>&1`;
+
+like(
+      $output,
+      qr/Replica lag is \d+ seconds on .*:12346.  Waiting/s,
+      "Basic test waits on the correct replica with --slave-user and --slave-password",
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --slave-user'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning printed for option --slave-password'
+) or diag($output);
+
+# Drop test user
+$sb->do_as_root("replica1", q/DROP USER 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+
+# Restore privilegs for the other tests
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox_old'@'%' TO 'msandbox'@'%'/);
+$sb->do_as_root("source", q/FLUSH PRIVILEGES/);                
+$sb->do_as_root("source", q/FLUSH TABLES/);
 
 diag("Setting replica delay to 0 seconds");
 $replica_dbh->do("STOP ${replica_name}");

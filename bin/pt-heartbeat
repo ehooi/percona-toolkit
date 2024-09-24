@@ -168,19 +168,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }
@@ -6117,6 +6117,35 @@ sub main {
    $o->get_specs();
    $o->get_opts();
 
+   # Deprecated options
+   if ( $o->got('print-master-server-id') ) {
+      warn "Option --print-master-server-id is deprecated and will be removed in future versions. Use --print-source-server-id instead.";
+      if ( !$o->got('print-source-server-id') ) {
+         $o->set('print-source-server-id', $o->get('print-master-server-id'));
+      }
+   }
+
+   if ( $o->got('master-server-id') ) {
+      warn "Option --master-server-id is deprecated and will be removed in future versions. Use --source-server-id instead.";
+      if ( !$o->got('source-server-id') ) {
+         $o->set('source-server-id', $o->get('master-server-id'));
+      }
+   }
+
+   if ( $o->got('slave-user') ) {
+      warn "Option --slave-user is deprecated and will be removed in future versions. Use --replica-user instead.";
+      if ( !$o->got('replica-user') ) {
+         $o->set('replica-user', $o->get('slave-user'));
+      }
+   }
+
+   if ( $o->got('slave-password') ) {
+      warn "Option --slave-password is deprecated and will be removed in future versions. Use --replica-password instead.";
+      if ( !$o->got('replica-password') ) {
+         $o->set('replica-password', $o->get('slave-password'));
+      }
+   }
+
    my $dp = $o->DSNParser;
    $dp->prop('dbidriver', $o->get('dbi-driver'));
    $dp->prop('set-vars', $o->set_vars());
@@ -7285,6 +7314,13 @@ type: string
 
 Print all output to this file when daemonized.
 
+=item --master-server-id
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--source-server-id"> instead.
+
 =item --source-server-id
 
 type: string
@@ -7333,6 +7369,11 @@ removed automatically when the tool exits.
 short form: -P; type: int
 
 Port number to use for connection.
+
+=item --print-master-server-id
+
+This option is deprecated and will be removed in future releases.
+Use L<"--print-source-server-id"> instead.
 
 =item --print-source-server-id
 
@@ -7399,6 +7440,20 @@ Time to run before exiting.
 type: string; default: /tmp/pt-heartbeat-sentinel
 
 Exit if this file exists.
+
+=item --slave-user
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-user"> instead.
+
+=item --slave-password
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-password"> instead.
 
 =item --replica-user
 

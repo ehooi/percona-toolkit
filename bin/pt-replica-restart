@@ -2720,19 +2720,19 @@ sub get_replicas {
       $self->recurse_to_replicas(
          {  dbh              => $dbh,
             dsn              => $dsn,
-            replica_user     => $o->got('replica-user') ? $o->get('replica-user') : '',
-            replica_password => $o->got('replica-password') ? $o->get('replica-password') : '',
+            replica_user     => ( $o->got('replica-user') or $o->got('slave-user') ) ? $o->get('replica-user') : '',
+            replica_password => ( $o->got('replica-password') or $o->got('slave-password') ) ? $o->get('replica-password') : '',
             replicas         => $args{replicas},
             callback  => sub {
                my ( $dsn, $dbh, $level, $parent ) = @_;
                return unless $level;
                PTDEBUG && _d('Found replica:', $dp->as_string($dsn));
                my $replica_dsn = $dsn;
-               if ($o->got('replica-user')) {
+               if ( $o->got('replica-user') or $o->got('slave-user') ) {
                   $replica_dsn->{u} = $o->get('replica-user');
                   PTDEBUG && _d("Using replica user ".$o->get('replica-user')." on ".$replica_dsn->{h}.":".$replica_dsn->{P});
                }
-               if ($o->got('replica-password')) {
+               if ( $o->got('replica-password') or $o->got('slave-password') ) {
                   $replica_dsn->{p} = $o->get('replica-password');
                   PTDEBUG && _d("Replica password set");
                }
@@ -5234,6 +5234,35 @@ sub main {
    $o->get_specs();
    $o->get_opts();
 
+   # Deprecated options
+   if ( $o->got('master-uuid') ) {
+      warn "Option --master-uuid is deprecated and will be removed in future versions. Use --source-uuid instead.";
+      if ( !$o->got('source-uuid') ) {
+         $o->set('source-uuid', $o->get('master-uuid'));
+      }
+   }
+
+   if ( $o->got('until-master') ) {
+      warn "Option --until-master is deprecated and will be removed in future versions. Use --until-source instead.";
+      if ( !$o->got('until-source') ) {
+         $o->set('until-source', $o->get('until-master'));
+      }
+   }
+
+   if ( $o->got('slave-user') ) {
+      warn "Option --slave-user is deprecated and will be removed in future versions. Use --replica-user instead.";
+      if ( !$o->got('replica-user') ) {
+         $o->set('replica-user', $o->get('slave-user'));
+      }
+   }
+
+   if ( $o->got('slave-password') ) {
+      warn "Option --slave-password is deprecated and will be removed in future versions. Use --replica-password instead.";
+      if ( !$o->got('replica-password') ) {
+         $o->set('replica-password', $o->get('slave-password'));
+      }
+   }
+
    $dp = $o->DSNParser();
    $dp->prop('set-vars', $o->set_vars());
 
@@ -5614,7 +5643,7 @@ sub watch_server {
          $stat->{last_error}        ||= '';
          $stat->{last_errno}        ||= 0;
 
-         if ( $o->get('until-source') && pos_ge($stat, $source_name, $source_name) ) {
+         if ( $o->get('until-source') && pos_ge($stat, 'source', $source_name) ) {
             die "Replica has advanced past " . $o->get('until-source')
                . " on master.\n";
          }
@@ -5731,7 +5760,7 @@ sub watch_server {
 sub pos_ge {
    my ( $stat, $which, $source_name ) = @_;
    my $fmt  = '%s/%020d';
-   my $curr = $which eq $source_name
+   my $curr = $which eq 'source'
       ? sprintf($fmt, @{$stat}{("relay_${source_name}_log_file", "exec_${source_name}_log_pos")})
       : sprintf($fmt, @{$stat}{qw(relay_log_file relay_log_pos)});
    my $stop = sprintf($fmt, split(',', $o->get("until-$which")));
@@ -6006,6 +6035,13 @@ type: string
 
 Print all output to this file when daemonized.
 
+=item --master-uuid
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--source-user"> instead.
+
 =item --max-sleep
 
 type: float; default: 64
@@ -6113,6 +6149,20 @@ type: string; default: /tmp/pt-replica-restart-sentinel
 
 Exit if this file exists.
 
+=item --slave-user
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-user"> instead.
+
+=item --slave-password
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--replica-password"> instead.
+
 =item --replica-user
 
 type: string
@@ -6211,6 +6261,13 @@ only instances previously started with the same options (that is, from the
 same C<cron> job).
 
 See also L<"--sentinel">.
+
+=item --until-master
+
+type: string
+
+This option is deprecated and will be removed in future releases.
+Use L<"--until-source"> instead.
 
 =item --until-source
 

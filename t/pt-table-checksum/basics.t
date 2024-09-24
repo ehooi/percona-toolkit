@@ -38,7 +38,7 @@ elsif ( !$replica1_dbh ) {
 elsif ( !@{$source_dbh->selectall_arrayref("show databases like 'sakila'")} ) {
    plan skip_all => 'sakila database is not loaded';
 } else {
-   plan tests => 40;
+   plan tests => 46;
 }
 
 # The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
@@ -208,6 +208,80 @@ is_deeply(
    "--emptry-replicate-table on by default"
 ) or print STDERR Dumper($row);
 
+# ############################################################################
+# --[no]check-replica-tables
+# ############################################################################
+
+$sb->wipe_clean($source_dbh);
+$sb->load_file('source', 't/pt-table-checksum/samples/issue_21.sql');
+
+$replica2_dbh->do('ALTER TABLE test.issue_21 DROP COLUMN b');
+
+($output, $exit_status) = full_output(
+   sub {
+      pt_table_checksum::main(@args, 
+         qw(-t test.issue_21),
+         qw(--chunk-time 0 --chunk-size 2 --no-check-replica-tables --no-replicate-check),
+         '--skip-check-replica-lag', 'h=127.0.0.1,P=12347,u=msandbox,p=msandbox'
+      )
+   },
+   stderr => 1
+);
+
+is(
+   $exit_status,
+   0,
+   'no error with --no-check-replica-tables'
+);
+
+like(
+   $output,
+   qr/Skipping replica h=127.0.0.1,P=12347/,
+   'Broken replica skipped with --no-check-replica-tables and --skip-check-replica-lag'
+);
+
+unlike(
+   $output,
+   qr/Option --\[no\]check-slave-tables is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --no-check-replica-tables provided'
+) or diag($output);
+
+($output, $exit_status) = full_output(
+   sub {
+      pt_table_checksum::main(@args, 
+         qw(-t test.issue_21),
+         qw(--chunk-time 0 --chunk-size 2 --no-check-slave-tables --no-replicate-check),
+         '--skip-check-replica-lag', 'h=127.0.0.1,P=12347,u=msandbox,p=msandbox'
+      )
+   },
+   stderr => 1
+);
+
+is(
+   $exit_status,
+   0,
+   'no error with --no-check-slave-tables'
+);
+
+like(
+   $output,
+   qr/Skipping replica h=127.0.0.1,P=12347/,
+   'Broken replica skipped with -no-check-slave-tables and --skip-check-replica-lag'
+);
+
+like(
+   $output,
+   qr/Option --\[no\]check-slave-tables is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --no-check-slave-tables provided'
+) or diag($output);
+
+$sb->load_file(
+   'replica2',
+   't/pt-table-checksum/samples/issue_21.sql',
+   undef,
+   no_wait => 1
+);
+$replica2_dbh->do("START ${replica_name}");
 # ############################################################################
 # --[no]recheck
 # ############################################################################

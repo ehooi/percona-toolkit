@@ -63,7 +63,7 @@ my @args = ($source1_dsn,
 
 # The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
 # so we need to specify --set-vars innodb_lock_wait_timeout=3 else the tool will die.
-$sb->do_as_root("chan_replica1", 'stop ${replica_name} IO_thread;');
+$sb->do_as_root("chan_replica1", "stop ${replica_name} IO_thread;");
 
 my $output;
 my $exit_status;
@@ -79,7 +79,7 @@ is(
     "PT-1637 exist status 128 if replication is stopped and --fail-on-replication-stopped",
 );
 
-$sb->do_as_root("chan_replica1", 'start ${replica_name} IO_thread;');
+$sb->do_as_root("chan_replica1", "start ${replica_name} IO_thread;");
 sleep(2);
 
 $sb->stop_sandbox(qw(chan_source1 chan_replica2 chan_replica1));

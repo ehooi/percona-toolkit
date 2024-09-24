@@ -105,6 +105,104 @@ unlike(
    '--error-text works (issue 459)'
 );
 
+# #############################################################################
+# Testing --recurse option
+# #############################################################################
+# Bust replication again.
+$source_dbh->do('DROP TABLE IF EXISTS test.t');
+$source_dbh->do('CREATE TABLE test.t (a INT)');
+sleep 1;
+$replica_dbh->do('DROP TABLE test.t');
+$source_dbh->do('INSERT INTO test.t SELECT 1');
+$output = `/tmp/12346/use -e "show ${replica_name} status"`;
+like(
+   $output,
+   qr/Table 'test.t' doesn't exist'/,
+   'It is busted again'
+);
+
+# Start an instance
+$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --error-text "doesn't exist" --run-time 1s --recurse 1 2>&1`;
+
+like(
+   $output,
+   qr/P=12346/,
+   'Replica discovered'
+);
+
+$replica_dbh->do('CREATE TABLE test.t (a INT)');
+$replica_dbh->do("start ${replica_name}");
+$sb->wait_for_replicas;
+
+# #############################################################################
+# Testing --recurse option with --slave-user/--slave-password
+# #############################################################################
+# Create a new user that is going to be replicated on replicas.
+if ($sandbox_version eq '8.0') {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'replica_password'/);
+} else {
+    $sb->do_as_root("replica1", q/CREATE USER 'replica_user'@'localhost' IDENTIFIED BY 'replica_password'/);
+}
+$sb->do_as_root("replica1", q/GRANT REPLICATION CLIENT ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);                
+
+$sb->wait_for_replicas();
+
+# Bust replication again.
+$source_dbh->do('DROP TABLE IF EXISTS test.t');
+$source_dbh->do('CREATE TABLE test.t (a INT)');
+sleep 1;
+$replica_dbh->do('DROP TABLE test.t');
+$source_dbh->do('INSERT INTO test.t SELECT 1');
+$output = `/tmp/12346/use -e "show ${replica_name} status"`;
+like(
+   $output,
+   qr/Table 'test.t' doesn't exist'/,
+   'It is busted again'
+);
+
+# Ensure we cannot connect to replicas using standard credentials
+# Since replica2 is a replica of replica1, removing the user from the replica1 will remove
+# the user also from replica2
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox'@'%' TO 'msandbox_old'@'%'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+$sb->do_as_root("replica1", q/FLUSH TABLES/);
+
+# Start an instance
+$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --error-text "doesn't exist" --run-time 1s --recurse 1 --slave-user replica_user --slave-password replica_password 2>&1`;
+
+like(
+   $output,
+   qr/P=12346/,
+   'Replica discovered with --slave-user/--slave-password'
+);
+
+like(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --slave-user provided'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --slave-password provided'
+) or diag($output);
+
+# Drop test user
+$sb->do_as_root("replica1", q/DROP USER 'replica_user'@'localhost'/);
+$sb->do_as_root("replica1", q/FLUSH PRIVILEGES/);
+
+# Restore privilegs for the other tests
+$sb->do_as_root("replica1", q/RENAME USER 'msandbox_old'@'%' TO 'msandbox'@'%'/);
+$sb->do_as_root("source", q/FLUSH PRIVILEGES/);                
+$sb->do_as_root("source", q/FLUSH TABLES/);
+
+$replica_dbh->do('CREATE TABLE test.t (a INT)');
+$replica_dbh->do("start ${replica_name}");
+$sb->wait_for_replicas;
+
 # ###########################################################################
 # Issue 391: Add --pid option to all scripts
 # ###########################################################################

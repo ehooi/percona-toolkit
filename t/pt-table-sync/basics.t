@@ -29,7 +29,7 @@ elsif ( !$replica_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica';
 }
 else {
-   plan tests => 24;
+   plan tests => 30;
 }
 
 $sb->create_dbs($source_dbh, [qw(test)]);
@@ -130,6 +130,45 @@ is_deeply(
    [ {   a => 1, b => 'en' }, { a => 2, b => 'ca' } ],
    'Synced OK with --replica-user'
 );
+
+unlike(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --replica-user provided'
+) or diag($output);
+
+unlike(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --replica-password provided'
+) or diag($output);
+
+$sb->load_file('source', 't/pt-table-sync/samples/before.sql');
+$output = run('test1', 'test2', '--algorithms Chunk,GroupBy --no-bin-log --slave-user replica_user --slave-password replica_password');
+
+like(
+   $output, 
+   qr/INSERT INTO `test`.`test2`\(`a`, `b`\) VALUES \('1', 'en'\);\nINSERT INTO `test`.`test2`\(`a`, `b`\) VALUES \('2', 'ca'\);/, 
+   'Basic Chunk sync with --slave-user/--slave-password'
+);
+
+is_deeply(
+   query_replica('select * from test.test2'),
+   [ {   a => 1, b => 'en' }, { a => 2, b => 'ca' } ],
+   'Synced OK with --slave-user'
+);
+
+like(
+   $output,
+   qr/Option --slave-user is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --slave-user provided'
+) or diag($output);
+
+like(
+   $output,
+   qr/Option --slave-password is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --slave-password provided'
+) or diag($output);
 
 $sb->load_file('source', 't/pt-table-sync/samples/before.sql');
 $output = run('test1', 'test2', '--algorithms Nibble --no-bin-log');

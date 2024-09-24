@@ -37,7 +37,7 @@ elsif ( !$replica2_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica2';
 }
 else {
-   plan tests => 4;
+   plan tests => 8;
 }
 
 # The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
@@ -89,6 +89,43 @@ is(
    0,
    "Ignores replica1 when --check-replica-lag=replica2"
 );
+
+unlike(
+   $output,
+   qr/Option --check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning not printed when option --check-replica-lag provided'
+) or diag($output);
+
+$row = $source_dbh->selectall_arrayref("select * from percona.checksums where db='sakila' and tbl='city'");
+is(
+   scalar @$row,
+   1,
+   "Checksummed table"
+);
+
+$source_dbh->do("delete from percona.checksums where db='sakila' and tbl='city'");
+
+# Checksum but only use replica2 to check for lag with deprecated --check-slave-lag.
+($output, $exit_status) = full_output(
+   sub {
+      pt_table_checksum::main(@args, 
+         qw(-t sakila.city --quiet),
+         qw(--no-replicate-check), '--check-slave-lag', 'P=12347')
+   },
+   stderr => 1,
+);
+
+is(
+   $exit_status,
+   0,
+   "Ignores replica1 when --check-slave-lag=replica2"
+);
+
+like(
+   $output,
+   qr/Option --check-slave-lag is deprecated and will be removed in future versions./,
+   'Deprecation warning printed when option --check-slave-lag provided'
+) or diag($output);
 
 $row = $source_dbh->selectall_arrayref("select * from percona.checksums where db='sakila' and tbl='city'");
 is(
