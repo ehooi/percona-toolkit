@@ -149,7 +149,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_eq($args{variables}->{innodb_buffer_pool_size},
-            10 * 1_048_576);  # 10M
+            128 * 1_048_576);  # 10M
       },
    },
    {
@@ -206,7 +206,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_gt($args{variables}->{innodb_log_buffer_size},
-            16 * 1_048_576);  # 16M
+            64 * 1_048_576);  # 16M
       },
    },
    {
@@ -214,7 +214,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_eq($args{variables}->{innodb_log_file_size},
-            5 * 1_048_576);  # 5M
+            48 * 1_048_576);  # 5M
       },
    },
    {
@@ -335,6 +335,13 @@ sub get_rules {
          my ( %args ) = @_;
          return _var_gt($args{variables}->{query_cache_size},
             512 * 1_048_576);  # 512M
+      },
+   },
+   {
+      id   => 'query_cache_size-3',
+      code => sub {
+         my ( %args ) = @_;
+         return _var_neq($args{variables}->{query_cache_size}, 0);
       },
    },
    {
@@ -537,7 +544,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return 0 unless $args{variables}->{storage_engine};
-         return $args{variables}->{storage_engine} !~ m/InnoDB|MyISAM/i ? 1 : 0;
+         return $args{variables}->{storage_engine} !~ m/InnoDB/i ? 1 : 0;
       },
    },
    {
