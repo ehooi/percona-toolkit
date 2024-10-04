@@ -11338,7 +11338,7 @@ sub print_err {
 #   %args - Arguments
 #
 # Required Arguments:
-#   OptionaParser - <OptionParser> object
+#   OptionParser - <OptionParser> object
 #   DSNParser     - <DSNParser> object
 #
 # Returns:
