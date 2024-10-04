@@ -223,7 +223,7 @@ update_manifest() {
    echo -n "Updating MANIFEST... "
    cd $BRANCH
    echo -n > MANIFEST
-   for file in * bin/* docs/*.pod; do
+   for file in * bin/* docs/*.pod $(find src/go); do
       if [ -f $file ]; then
          echo $file >> MANIFEST
       fi
@@ -343,12 +343,9 @@ prep_release_dir() {
    elif [ -d $RELEASE_DIR/$PKG ]; then
       rm -rf $RELEASE_DIR/$PKG
    fi
-   (
-      cd $RELEASE_DIR
-      mkdir -p $PKG $PKG/bin $PKG/docs $PKG/lib
-   )
    update_manifest
    for file in `cat MANIFEST`; do
+      mkdir -p $RELEASE_DIR/$PKG/$(dirname $file)
       cp $file $RELEASE_DIR/$PKG/$file
    done
    echo "OK"
@@ -364,6 +361,7 @@ build_tar() {
 build_rpm() {
    echo -n "Building $PKG-1.$ARCH.rpm... "
    cd $RELEASE_DIR
+   sed -e "s/@@ARCHITECTURE@@/$ARCH/" $RPM_CONFIG_DIR/percona-toolkit.spec > $RELEASE_DIR/percona-toolkit.spec
    if [ ! -f "$PKG.tar.gz" ]; then
       die "Cannot build RPM because $PKG.tar.gz does not exist"
    fi
@@ -373,7 +371,7 @@ build_rpm() {
    cd rpm
    local topdir=`pwd`
    # Build RPM package from the tarball.
-   rpmbuild -bb --clean $RPM_CONFIG_DIR/percona-toolkit.spec \
+   rpmbuild -bb --clean $RELEASE_DIR/percona-toolkit.spec \
       --quiet                            \
       --define "_topdir $PWD"            \
       --define "_sourcedir $RELEASE_DIR" \
@@ -409,6 +407,7 @@ build_deb() {
       rm -rf * $RELEASE_DIR/$PKG/debian
    fi
    cp $BRANCH/config/deb/* $RELEASE_DIR/$PKG/debian/
+   sed -e "s/@@ARCHITECTURE@@/$DEB_ARCH/" $DEB_CONFIG_DIR/control > $RELEASE_DIR/$PKG/debian/control
 
    # Build Debian binary and source packages.
    cd $RELEASE_DIR/$PKG
@@ -485,13 +484,16 @@ OS_ARCH=${3:-linux-amd64}
 ONLY_UPDATE_VERSION=${ONLY_UPDATE_VERSION:-0}
 ONLY_UPDATE_COPYRIGHT_YEAR=${ONLY_UPDATE_COPYRIGHT_YEAR:-0}
 
-if [ $OS_ARCH != "linux-amd64" ] && [ $OS_ARCH != "linux-386" ] && [ $OS_ARCH != "darwin-amd64" ]; then
-   die "Valid OS-ARCH combinations are: linux-amd64, linux-386, darwin-amd64"
+if [ $OS_ARCH != "linux-amd64" ] && [ $OS_ARCH != "linux-arm64" ] && [ $OS_ARCH != "linux-386" ] && [ $OS_ARCH != "darwin-amd64" ]; then
+   die "Valid OS-ARCH combinations are: linux-amd64, linux-arm64, linux-386, darwin-amd64"
 fi
 
 if [ $OS_ARCH == "linux-amd64" ]; then
    ARCH="x86_64"
    DEB_ARCH="amd64"
+elif [ $OS_ARCH == "linux-arm64" ]; then
+   ARCH="aarch64"
+   DEB_ARCH="arm64"
 elif [ $OS_ARCH == "linux-386" ]; then
    ARCH="i386"
    DEB_ARCH="i386"
@@ -499,9 +501,6 @@ else
    ARCH="noarch"
    DEB_ARCH="all"
 fi
-
-sed -i'.bak' -e "s/@@ARHITECTURE@@/$ARCH/" $RPM_CONFIG_DIR/percona-toolkit.spec
-sed -i'.bak' -e "s/@@ARHITECTURE@@/$DEB_ARCH/" $DEB_CONFIG_DIR/control
 
 if [ ! -f $REL_NOTES ]; then
    die "$REL_NOTES does not exist"

@@ -133,6 +133,12 @@ linux-amd64: 				## Build Go tools for linux-amd64.
 	@$(foreach pkg,$(pkgs),rm -f ${BIN_DIR}/$(pkg) 2> /dev/null;)
 	@$(foreach pkg,$(pkgs),GOOS=linux GOARCH=amd64 go build -ldflags ${LDFLAGS} -o ${BIN_DIR}/$(pkg) ./$(pkg);)
 
+linux-arm64: 				## Build Go tools for linux-arm64.
+	@echo "Building linux/arm64 binaries in ${BIN_DIR} as version ${VERSION}"
+	@cd ${TOP_DIR} && go get ./...
+	@$(foreach pkg,$(pkgs),rm -f ${BIN_DIR}/$(pkg) 2> /dev/null;)
+	@$(foreach pkg,$(pkgs),GOOS=linux GOARCH=arm64 go build -ldflags ${LDFLAGS} -o ${BIN_DIR}/$(pkg) ./$(pkg);)
+
 linux-386: 					## Build Go tools for linux-386
 	@echo "Building linux/386 binaries in ${BIN_DIR} as version ${VERSION}"
 	@cd ${TOP_DIR} && go get ./...

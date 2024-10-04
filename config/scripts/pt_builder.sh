@@ -323,7 +323,7 @@ build_srpm(){
     cd ${WORKDIR}/rpmbuild/SPECS
     echo '%undefine _missing_build_ids_terminate_build' | cat - percona-toolkit.spec > pt.spec && mv pt.spec percona-toolkit.spec
     echo '%define debug_package %{nil}' | cat - percona-toolkit.spec > pt.spec && mv pt.spec percona-toolkit.spec
-    sed -i "s/@@ARHITECTURE@@/x86_64/" percona-toolkit.spec
+    sed -i "s/@@ARCHITECTURE@@/x86_64/" percona-toolkit.spec
     cd ${WORKDIR}/${PRODUCT_FULL}
     rm -rf bin/govendor
     rm -rf bin/glide
@@ -417,7 +417,7 @@ build_source_deb(){
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     update_go
     cd ${WORKDIR}/${BUILDDIR}
-    sed -i 's/@@ARHITECTURE@@/amd64/' debian/control
+    sed -i 's/@@ARCHITECTURE@@/amd64/' debian/control
     cd debian
     echo "${PRODUCT} (${VERSION}) unstable; urgency=low" > changelog
     echo "  * Initial Release." >> changelog
