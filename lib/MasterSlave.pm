@@ -453,8 +453,10 @@ sub is_source_of {
          . $replica_status->{"${source_name}_user"};
    }
 
-   if ( ($replica_status->{replica_io_state} || '')
-      eq 'Waiting for ${source_name} to send event' )
+   if ( ( ($replica_status->{replica_io_state} || '')
+         eq 'Waiting for source to send event' )
+      || ( ($replica_status->{replica_io_state} || '')
+         eq 'Waiting for master to send event' ) )
    {
       # The replica thinks its I/O thread is caught up to the source.  Let's
       # compare and make sure the source and replica are reasonably close to each

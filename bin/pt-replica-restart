@@ -3038,8 +3038,10 @@ sub is_source_of {
          . $replica_status->{"${source_name}_user"};
    }
 
-   if ( ($replica_status->{replica_io_state} || '')
-      eq 'Waiting for ${source_name} to send event' )
+   if ( ( ($replica_status->{replica_io_state} || '')
+         eq 'Waiting for source to send event' )
+      || ( ($replica_status->{replica_io_state} || '')
+         eq 'Waiting for master to send event' ) )
    {
       my ( $source_log_name, $source_log_num )
          = $source_status->{file} =~ m/^(.*?)\.0*([1-9][0-9]*)$/;
