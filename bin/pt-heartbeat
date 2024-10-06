@@ -6978,7 +6978,7 @@ pt-heartbeat measures replication lag on a MySQL or PostgreSQL server.  You can
 use it to update a replication source or monitor a replica.  If possible, MySQL
 connection options are read from your .my.cnf file.
 
-Start daemonized process to update test.heartbeat table on replicaiton source:
+Start daemonized process to update test.heartbeat table on replication source:
 
   pt-heartbeat -D test --update -h source-server --daemonize
 
@@ -7018,7 +7018,7 @@ avoids reliance on the replication mechanism itself, which is unreliable.  (For
 example, C<SHOW REPLICA STATUS> on MySQL).
 
 The first part is an L<"--update"> instance of pt-heartbeat that connects to
-a replicaiton source and updates a timestamp ("heartbeat record") every
+a replication source and updates a timestamp ("heartbeat record") every
 L<"--interval"> seconds.  Since the heartbeat table may contain records from
 multiple replication sources (see L<"MULTI-REPLICA HIERARCHY">), the server's ID
 (@@server_id) is used to identify records.

@@ -6131,7 +6131,7 @@ Possible methods are:
   hosts        SHOW REPLICAS (SHOW SLAVE HOSTS before MySQL 8.1)
   none         Do not find replicas
 
-The processlist method is preferred because SHOW REPLCIAS is not reliable.
+The processlist method is preferred because SHOW REPLICAS is not reliable.
 However, the hosts method is required if the server uses a non-standard
 port (not 3306).  Usually pt-replica-restart does the right thing and finds
 the replicas, but you may give a preferred method and it will be used first.

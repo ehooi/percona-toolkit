@@ -5692,7 +5692,7 @@ There is no output when there are no differences.  When there are differences,
 pt-config-diff prints a report to STDOUT that looks similar to the following:
 
   2 config differences
-  Variable                  my.soource.cnf   my.replica.cnf
+  Variable                  my.source.cnf   my.replica.cnf
   ========================= =============== ===============
   datadir                   /tmp/12345/data /tmp/12346/data
   port                      12345           12346
