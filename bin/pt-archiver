@@ -7285,7 +7285,7 @@ sub main {
          PTDEBUG && _d('Got another row in this chunk');
       }
 
-      # Check slave lag and wait if slave is too far behind.
+      # Check replica lag and wait if slave is too far behind.
       # Do this check every 100 rows
       if (@lag_dbh && $lag_count++ % 100 == 0 ) {
          foreach my $lag_server (@lag_dbh) {
@@ -7294,9 +7294,9 @@ sub main {
             if ( $lag_dbh ) {
                my $lag = $ms->get_replica_lag($lag_dbh);
                while ( !defined $lag || $lag > $o->get('max-lag') ) {
-                  PTDEBUG && _d("Sleeping: slave lag for server '$id' is", $lag);
+                  PTDEBUG && _d("Sleeping: replica lag for server '$id' is", $lag);
                   if ($o->got('progress')) {
-                     _d("Sleeping: slave lag for server '$id' is", $lag);
+                     _d("Sleeping: replica lag for server '$id' is", $lag);
                   }
                   sleep($o->get('check-interval'));
                   $lag = $ms->get_replica_lag($lag_dbh);

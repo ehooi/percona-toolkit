@@ -9272,7 +9272,7 @@ sub main {
       }
 
       if ( my $dsn = $o->get('check-replica-lag') ) {
-         PTDEBUG && _d('Will use --check-replica-lag to check for slave lag');
+         PTDEBUG && _d('Will use --check-replica-lag to check for replica lag');
          my $cxn = $make_cxn->(
             dsn_string => $o->get('check-replica-lag'),
             #prev_dsn   => $cxn->dsn(),
