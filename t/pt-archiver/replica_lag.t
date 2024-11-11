@@ -70,7 +70,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works'
 ) or diag($output);
 
@@ -98,7 +98,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works when --check-replica-lag provided two times'
 ) or diag($output);
 
@@ -126,7 +126,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Test 2: Lag check works when --check-replica-lag provided two times'
 ) or diag($output);
 
@@ -153,7 +153,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works for deprecated option'
 ) or diag($output);
 
@@ -181,7 +181,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works when option --check-slave-lag provided two times'
 ) or diag($output);
 
@@ -209,7 +209,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works for --check-replica-lag when --check-slave-lag also provided'
 ) or diag($output);
 
@@ -237,7 +237,7 @@ $output = output(
 
 like(
    $output,
-   qr/Sleeping: slave lag for server/,
+   qr/Sleeping: replica lag for server/,
    'Lag check works for --check-slave-lag when --check-replica-lag also provided'
 ) or diag($output);
 

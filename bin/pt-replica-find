@@ -4038,7 +4038,7 @@ sub _d {
 # Check at the end of this package for the call to main() which actually runs
 # the program.
 # ###########################################################################
-package pt_slave_find;
+package pt_replica_find;
 
 use strict;
 use warnings FATAL => 'all';
@@ -4161,7 +4161,7 @@ sub main {
       summary  => \&print_node_summary,
    );
    my $print_node = $print_node_sub_for{lc($o->get('report-format'))};
-   print_slaves(
+   print_replicas(
       node          => $root,
       print_node    => $print_node,
       MasterSlave   => $ms,
@@ -4185,7 +4185,7 @@ sub main {
 #    +- 1
 #       +- 2
 #    +- 1
-sub print_slaves {
+sub print_replicas {
    my ( %args ) = @_;
    my ($ms, $node, $level, $print_node)
       = @args{qw(MasterSlave node level print_node)};
@@ -4202,7 +4202,7 @@ sub print_slaves {
       PTDEBUG && _d($ms->short_host($node), "has slaves");
       my @slaves = reverse @{$node->{children}};
       foreach my $slave ( @slaves ) {
-         print_slaves(%args, node=>$slave, level=>$level + 1);
+         print_replicas(%args, node=>$slave, level=>$level + 1);
       }
    }
 
@@ -4278,8 +4278,8 @@ sub print_node_summary {
    }
    push @lines, [
       'Replication',
-      ($ss ? "Is a slave, " : "Is not a slave, ")
-         . "has $n_slaves slaves connected, "
+      ($ss ? "Is a replica, " : "Is not a replica, ")
+         . "has $n_slaves replicas connected, "
          . "is " . (($vars->{read_only}->{value} || "") eq "ON" ? "" : "not ")
          . "read_only"
    ];
@@ -4556,7 +4556,7 @@ about each replica, like:
   Version         5.1.34-log
   Server ID       12345
   Uptime          04:56 (started 2010-06-17T11:21:22)
-  Replication     Is not a slave, has 1 slaves connected
+  Replication     Is not a replica, has 1 replicas connected
   Filters
   Binary logging  STATEMENT
   Slave status
@@ -4566,7 +4566,7 @@ about each replica, like:
      Version         5.1.34-log
      Server ID       12346
      Uptime          04:54 (started 2010-06-17T11:21:24)
-     Replication     Is a slave, has 1 slaves connected
+     Replication     Is a replica, has 1 replicas connected
      Filters
      Binary logging  STATEMENT
      Slave status    0 seconds behind, running, no errors

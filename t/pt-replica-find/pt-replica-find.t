@@ -157,7 +157,7 @@ my $outfile = "/tmp/mk-replica-find-output.txt";
 diag(`rm -rf $outfile`);
 
 $output = output(
-   sub { pt_slave_find::main(@args) },
+   sub { pt_replica_find::main(@args) },
    file => $outfile,
 );
 
@@ -203,7 +203,7 @@ ok(
       ? "t/pt-replica-find/samples/summary001.txt"
       : "t/pt-replica-find/samples/summary001-5.0.txt"), cmd_output => 1, keep_output => 1, update_samples => 1),
    "Summary report format",
-);
+) or diag($result);
 
 # #############################################################################
 # Done.
