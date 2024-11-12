@@ -4276,13 +4276,8 @@ sub get_connected_replicas {
 sub is_source_of {
    my ( $self, $source, $replica ) = @_;
 
-   my $replica_version = VersionParser->new($replica);
-   my $source_name = 'source';
-   my $source_port = 'source_port';
-   if ( $replica_version lt '8.1' || $replica_version->flavor() =~ m/maria/ ) {
-      $source_name = 'master';
-      $source_port = 'master_port';
-   }
+   my $source_name = get_source_name($replica);
+   my $source_port = "${source_name}_port";
 
    my $source_status = $self->get_source_status($source)
       or die "The server specified as a source is not a source";
@@ -4341,11 +4336,7 @@ sub get_source_dsn {
 sub get_replica_status {
    my ( $self, $dbh ) = @_;
 
-   my $server_version = VersionParser->new($dbh);
-   my $replica_name = 'replica';
-   if ( $server_version lt '8.1' || $server_version->flavor() =~ m/maria/ ) {
-      $replica_name = 'slave';
-   }
+   my $replica_name = get_replica_name($dbh);
 
    if ( !$self->{not_a_replica}->{$dbh} ) {
       my $sth = $self->{sths}->{$dbh}->{REPLICA_STATUS}
@@ -4456,11 +4447,8 @@ sub wait_for_source {
               error  =>'Wait for source: this is a multi-source replica but "channel" was not specified on the command line',
           };
       }
+      my $source_name = get_source_name($replica_dbh);
       my $vp = VersionParser->new($replica_dbh);
-      my $source_name = 'source';
-      if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-         $source_name = 'master';
-      }
       my $channel_sql = $vp > '5.6' && $self->{channel} ? ", '$self->{channel}'" : '';
       my $sql = "SELECT ${source_name}_POS_WAIT('$source_status->{file}', $source_status->{position}, $timeout $channel_sql)";
       PTDEBUG && _d($replica_dbh, $sql);
@@ -4484,11 +4472,8 @@ sub wait_for_source {
 
 sub stop_replica {
    my ( $self, $dbh ) = @_;
-   my $vp = VersionParser->new($dbh);
-   my $replica_name = 'replica';
-   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $replica_name = 'slave';
-   }
+   my $replica_name = get_replica_name($dbh);
+
    my $sth = $self->{sths}->{$dbh}->{STOP_REPLICA}
          ||= $dbh->prepare("STOP ${replica_name}");
    PTDEBUG && _d($dbh, $sth->{Statement});
@@ -4498,13 +4483,8 @@ sub stop_replica {
 sub start_replica {
    my ( $self, $dbh, $pos ) = @_;
 
-   my $vp = VersionParser->new($dbh);
-   my $source_name = 'source';
-   my $replica_name = 'replica';
-   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $source_name = 'master';
-      $replica_name = 'slave';
-   }
+   my $source_name = get_source_name($dbh);
+   my $replica_name = get_replica_name($dbh);
 
    if ( $pos ) {
       my $sql = "START ${replica_name} UNTIL ${source_name}_LOG_FILE='$pos->{file}', "
@@ -4548,11 +4528,7 @@ sub catchup_to_source {
       if ( !defined $result->{result} ) {
          $replica_status = $self->get_replica_status($replica);
             
-         my $vp = VersionParser->new($replica);
-         my $replica_name = 'replica';
-         if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-            $replica_name = 'slave';
-         }
+         my $replica_name = get_replica_name($replica);
 
          if ( !$self->replica_is_running($replica_status, $replica_name) ) {
             PTDEBUG && _d('Source position:',
@@ -4597,17 +4573,9 @@ sub catchup_to_same_pos {
    $s1_pos    = $self->repl_posn($s1_status);
    $s2_pos    = $self->repl_posn($s2_status);
 
-   my $vp1 = VersionParser->new($s1_dbh);
-   my $replica1_name = 'replica';
-   if ( $vp1 lt '8.1' || $vp1->flavor() =~ m/maria/ ) {
-      $replica1_name = 'slave';
-   }
+   my $replica1_name = get_replica_name($s1_dbh);
 
-   my $vp2 = VersionParser->new($s2_dbh);
-   my $replica2_name = 'replica';
-   if ( $vp2 lt '8.1' || $vp2->flavor() =~ m/maria/ ) {
-      $replica2_name = 'slave';
-   }
+   my $replica2_name = get_replica_name($s2_dbh);
 
    if ( $self->replica_is_running($s1_status, $replica1_name)
      || $self->replica_is_running($s2_status, $replica2_name)
@@ -4626,11 +4594,7 @@ sub replica_is_running {
 sub has_replica_updates {
    my ( $self, $dbh ) = @_;
    
-   my $vp = VersionParser->new($dbh);
-   my $replica_name = 'replica';
-   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $replica_name = 'slave';
-   }
+   my $replica_name = get_replica_name($dbh);
 
    my $sql = qq{SHOW VARIABLES LIKE 'log_${replica_name}_updates'};
    PTDEBUG && _d($dbh, $sql);
@@ -4663,11 +4627,7 @@ sub repl_posn {
 sub get_replica_lag {
    my ( $self, $dbh ) = @_;
    
-   my $vp = VersionParser->new($dbh);
-   my $source_name = 'source';
-   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $source_name = 'master';
-   }
+   my $source_name = get_source_name($dbh);
 
    my $stat = $self->get_replica_status($dbh);
    return unless $stat;  # server is not a replica
@@ -4767,11 +4727,7 @@ sub get_replication_filters {
    }
    my ($dbh) = @args{@required_args};
 
-   my $vp = VersionParser->new($dbh);
-   my $replica_name = 'replica';
-   if ( $vp lt '8.1' || $vp->flavor() =~ m/maria/ ) {
-      $replica_name = 'slave';
-   }
+   my $replica_name = get_replica_name($dbh);
 
    my %filters = ();
 
@@ -4879,6 +4835,18 @@ sub get_cxn_from_dsn_table {
       $done = 1;
    } until $done;
    return \@cxn;
+}
+
+sub get_source_name {
+   my ($dbh) = @_;
+   my $vp = VersionParser->new($dbh);
+   return ($vp lt '8.1' || $vp->flavor() =~ m/maria/) ? 'master' : 'source';
+}
+
+sub get_replica_name {
+   my ($dbh) = @_;
+   my $vp = VersionParser->new($dbh);
+   return ($vp lt '8.1' || $vp->flavor() =~ m/maria/) ? 'slave' : 'replica';
 }
 
 sub _d {

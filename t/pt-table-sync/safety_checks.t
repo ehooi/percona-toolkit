@@ -155,5 +155,6 @@ $replica1_dbh->do("START ${replica_name}");
 # Done.
 # #############################################################################
 $sb->wipe_clean($source_dbh);
+$sb->wait_for_replicas();
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 done_testing;

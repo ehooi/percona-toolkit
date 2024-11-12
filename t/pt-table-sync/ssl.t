@@ -27,7 +27,7 @@ elsif ( !$replica_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica';
 }
 else {
-   plan tests => 7;
+   plan tests => 6;
 }
 
 my ($output, $exit_code);
@@ -37,10 +37,12 @@ $sb->do_as_root(
    'source',
    q/CREATE USER IF NOT EXISTS sha256_user@'%' IDENTIFIED WITH caching_sha2_password BY 'sha256_user%password' REQUIRE SSL/,
    q/GRANT ALL ON sakila.* TO sha256_user@'%'/,
+   q/GRANT REPLICATION CLIENT ON *.* TO sha256_user@'%'/,
+   q/GRANT PROCESS ON *.* TO sha256_user@'%'/,
 );
 
 ($output, $exit_code) = full_output(
-   sub { pt_table_sync::main('h=127.1,P=12345,D=sakila,t=film,u=sha256_user,p=sha256_user%password,s=0', @args) },
+   sub { pt_table_sync::main('h=127.1,P=12346,D=sakila,t=film,u=sha256_user,p=sha256_user%password,s=0', @args) },
    stderr => 1,
 );
 
@@ -57,7 +59,7 @@ like(
 ) or diag($output);
 
 ($output, $exit_code) = full_output(
-   sub { pt_table_sync::main('h=127.1,P=12345,D=sakila,t=film,u=sha256_user,p=sha256_user%password,s=1', @args) },
+   sub { pt_table_sync::main('h=127.1,P=12346,D=sakila,t=film,u=sha256_user,p=sha256_user%password,s=1', @args) },
    stderr => 1,
 );
 
@@ -75,7 +77,7 @@ unlike(
 
 like(
    $output,
-   qr/WHERE \(`actor_id` = 0\)/,
+   qr/WHERE \(`film_id` = 0\)/,
    "Zero chunk"
 );
 

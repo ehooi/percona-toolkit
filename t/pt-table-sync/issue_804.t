@@ -50,7 +50,8 @@ is(
 # #############################################################################
 # Done.
 # #############################################################################
+$source_dbh->do('set sql_log_bin=1');
 $sb->wipe_clean($source_dbh);
-$sb->wipe_clean($replica_dbh);
+$sb->wait_for_replicas();
 ok($sb->ok(), "Sandbox servers") or BAIL_OUT(__FILE__ . " broke the sandbox");
 exit;
