@@ -47,9 +47,10 @@ ok(
    no_diff(
       sub { pt_table_usage::main(@args, qw(-D sakila), "$in/slow003.txt") },
       "$out/slow003-002.txt",
+      keep_output => 1,
    ),
    'EXPLAIN EXTENDED slow003.txt'
-);
+) or diag(`cat /tmp/percona-toolkit-test-output.txt`);
 
 $output = output(
    sub { pt_table_usage::main(@args, qw(-D sakila),

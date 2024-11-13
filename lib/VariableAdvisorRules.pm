@@ -149,7 +149,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_eq($args{variables}->{innodb_buffer_pool_size},
-            128 * 1_048_576);  # 10M
+            128 * 1_048_576);  # 128M
       },
    },
    {
@@ -206,7 +206,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_gt($args{variables}->{innodb_log_buffer_size},
-            64 * 1_048_576);  # 16M
+            64 * 1_048_576);  # 64M
       },
    },
    {
@@ -214,7 +214,7 @@ sub get_rules {
       code => sub {
          my ( %args ) = @_;
          return _var_eq($args{variables}->{innodb_log_file_size},
-            48 * 1_048_576);  # 5M
+            48 * 1_048_576);  # 48M
       },
    },
    {

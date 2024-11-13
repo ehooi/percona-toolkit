@@ -236,7 +236,7 @@ is(
 
 like(
    $output,
-   qr/Skipping replica h=127.0.0.1,P=12347/,
+   qr/Skipping ${replica_name} h=127.0.0.1,P=12347/,
    'Broken replica skipped with --no-check-replica-tables and --skip-check-replica-lag'
 );
 
@@ -265,7 +265,7 @@ is(
 
 like(
    $output,
-   qr/Skipping replica h=127.0.0.1,P=12347/,
+   qr/Skipping ${replica_name} h=127.0.0.1,P=12347/,
    'Broken replica skipped with -no-check-slave-tables and --skip-check-replica-lag'
 );
 

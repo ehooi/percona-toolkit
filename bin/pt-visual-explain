@@ -2756,12 +2756,15 @@ sub main {
    # If --pid, check it first since we'll die if it already exits.
    # ########################################################################
    my $daemon;
-   if ( $o->get('pid') ) {
+   if ( my $pid_file = $o->get('pid') ) {
       # We're not daemoninzing, it just handles PID stuff.  Keep $daemon
       # in the the scope of main() because when it's destroyed it automatically
       # removes the PID file.
-      $daemon = new Daemon(o=>$o);
-      $daemon->make_PID_file();
+      $daemon = new Daemon(
+         pid_file  => $pid_file,
+         daemonize => 0,
+      );
+      $daemon->run();
    }
 
    # #######################################################################
