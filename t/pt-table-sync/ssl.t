@@ -26,6 +26,9 @@ if ( !$source_dbh ) {
 elsif ( !$replica_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica';
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 else {
    plan tests => 6;
 }

@@ -23,6 +23,9 @@ my $dbh2 = $sb->get_dbh_for('source', { PrintError => 0, RaiseError => 1, AutoCo
 if ( !$dbh1 || !$dbh2 ) {
    plan skip_all => 'Cannot connect to sandbox source';
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 
 my ($output, $exit_code);
 my $dsn  = $sb->dsn_for('source');

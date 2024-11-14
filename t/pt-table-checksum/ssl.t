@@ -22,6 +22,9 @@ my $dbh = $sb->get_dbh_for('source');
 if ( !$dbh ) {
    plan skip_all => 'Cannot connect to sandbox source';
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 else {
    plan tests => 7;
 }

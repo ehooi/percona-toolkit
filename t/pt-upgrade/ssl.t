@@ -28,6 +28,9 @@ my $dbh1 = $sb->get_dbh_for('host1');
 if ( !$dbh1 ) {
    plan skip_all => 'Cannot connect to sandbox host1'; 
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 
 my $host1_dsn   = $sb->dsn_for('host1');
 my $tmpdir      = tempdir("/tmp/pt-upgrade.$PID.XXXXXX", CLEANUP => 1);

@@ -23,7 +23,10 @@ my $dbh = $sb->get_dbh_for('source');
 if ( !$dbh ) {
    plan skip_all => 'Cannot connect to sandbox source';
 }
-if ( !@{ $dbh->selectall_arrayref("show databases like 'sakila'") } ) {
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
+elsif ( !@{ $dbh->selectall_arrayref("show databases like 'sakila'") } ) {
    plan skip_all => "Sakila database is not loaded";
 }
 

@@ -15,6 +15,10 @@ use PerconaTest;
 use Sandbox;
 require "$trunk/bin/pt-replica-restart";
 
+if ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
+
 diag('Restarting the sandbox');
 diag(`SAKILA=0 REPLICATION_THREADS=0 GTID=1 $trunk/sandbox/test-env restart`);
 diag("Sandbox restarted");

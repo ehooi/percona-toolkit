@@ -28,6 +28,9 @@ if ( !$source_dbh ) {
 elsif ( !$replica_dbh ) {
    plan skip_all => 'Cannot connect to sandbox replica1';
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 
 # The sandbox servers run with lock_wait_timeout=3 and it's not dynamic
 # so we need to specify --set-vars innodb_lock_wait_timeout=3 else the

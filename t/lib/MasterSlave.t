@@ -235,6 +235,9 @@ diag(`$trunk/sandbox/start-sandbox replica 2903 2900`);
 diag(`$trunk/sandbox/start-sandbox replica 2901 2900`);
 diag(`$trunk/sandbox/start-sandbox replica 2902 2901`);
 
+# We need to sleep, so source server updates list of replicas on fast machines.
+sleep(1);
+
 # I discovered something weird while updating this test. Above, you see that
 # slave2 is started first, then the others. Before, slave2 was started last,
 # but this caused the tests to fail because SHOW SLAVE HOSTS on the master

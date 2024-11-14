@@ -23,6 +23,9 @@ my $dsn = $sb->dsn_for('source');
 if ( !$dbh ) {
    plan skip_all => "Cannot connect to sandbox source";
 }
+elsif ( $sandbox_version lt '8.0' ) {
+   plan skip_all => "Requires MySQL 8.0 or newer";
+}
 
 # #############################################################################
 # https://bugs.launchpad.net/percona-toolkit/+bug/1168106
