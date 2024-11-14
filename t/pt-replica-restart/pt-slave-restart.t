@@ -207,7 +207,7 @@ $sb->wait_for_replicas;
 # Issue 391: Add --pid option to all scripts
 # ###########################################################################
 `touch /tmp/pt-script.pid`;
-$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox --pid /tmp/pt-script.pid 2>&1`;
+$output = `$trunk/bin/pt-slave-restart --max-sleep 0.25 -h 127.0.0.1 -P 12346 -u msandbox -p msandbox s=1 --pid /tmp/pt-script.pid 2>&1`;
 like(
    $output,
    qr{PID file /tmp/pt-script.pid exists},

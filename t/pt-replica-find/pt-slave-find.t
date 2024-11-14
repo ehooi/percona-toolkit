@@ -137,7 +137,7 @@ $sb->do_as_root("source", q/FLUSH TABLES/);
 # Test --resolve-hostname option (we don't know the hostname of the test
 # machine so we settle for any non null string)
 ###############################################################################
-$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --report-format hostname --resolve-address`;
+$output = `$trunk/bin/pt-slave-find -h 127.0.0.1 -P 12345 -u msandbox -p msandbox --report-format hostname --resolve-address s=1`;
 like (   
    $output,
    qr/127\.0\.0\.1:12345\s+\(\w+\)/s,

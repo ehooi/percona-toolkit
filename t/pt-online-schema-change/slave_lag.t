@@ -284,7 +284,7 @@ $source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
 
 # We need to sleep, otherwise pt-osc can finish before replica is delayed
 sleep($max_lag);
-$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+$args = "$source_dsn,D=test,t=pt178,s=1 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
       . "--pid $tmp_file_name --progress time,5 "
       . "--replica-user replica_user --replica-password replica_password";
 
@@ -318,7 +318,7 @@ $source_dbh->do('UPDATE `test`.`pt178` SET f2 = f2 + 1 WHERE f1 = ""');
 
 # We need to sleep, otherwise pt-osc can finish before replica is delayed
 sleep($max_lag);
-$args = "$source_dsn,D=test,t=pt178 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
+$args = "$source_dsn,D=test,t=pt178,s=1 --execute --chunk-size 10 --max-lag $max_lag --alter 'ENGINE=InnoDB' "
       . "--pid $tmp_file_name --progress time,5 "
       . "--slave-user replica_user --slave-password replica_password";
 
